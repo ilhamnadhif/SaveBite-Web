@@ -1,0 +1,16 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$ROOT_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy web:3000
+}
+
+merchant.{$ROOT_DOMAIN} {
+  encode zstd gzip
+  handle / {
+    redir /merchant 308
+  }
+  reverse_proxy web:3000
+}

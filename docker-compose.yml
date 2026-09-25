@@ -1,0 +1,53 @@
+services:
+  web:
+    image: savebite-web:latest
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env}
+        NEXT_PUBLIC_AUTH_CALLBACK_URL: ${NEXT_PUBLIC_AUTH_CALLBACK_URL:?Set NEXT_PUBLIC_AUTH_CALLBACK_URL in .env}
+        NEXT_PUBLIC_COOKIE_DOMAIN: ${NEXT_PUBLIC_COOKIE_DOMAIN:-}
+        NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: ${NEXT_PUBLIC_MIDTRANS_CLIENT_KEY:-}
+        NEXT_PUBLIC_MIDTRANS_ENVIRONMENT: ${NEXT_PUBLIC_MIDTRANS_ENVIRONMENT:-sandbox}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env}
+      NEXT_PUBLIC_AUTH_CALLBACK_URL: ${NEXT_PUBLIC_AUTH_CALLBACK_URL:?Set NEXT_PUBLIC_AUTH_CALLBACK_URL in .env}
+      NEXT_PUBLIC_COOKIE_DOMAIN: ${NEXT_PUBLIC_COOKIE_DOMAIN:-}
+      NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: ${NEXT_PUBLIC_MIDTRANS_CLIENT_KEY:-}
+      NEXT_PUBLIC_MIDTRANS_ENVIRONMENT: ${NEXT_PUBLIC_MIDTRANS_ENVIRONMENT:-sandbox}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks: [savebite]
+
+  caddy:
+    profiles: ["custom-domain"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    networks: [savebite]
+
+networks:
+  savebite:
+
+volumes:
+  caddy_data:
+  caddy_config:

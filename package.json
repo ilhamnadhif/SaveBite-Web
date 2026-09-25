@@ -1,0 +1,10 @@
+{
+  "name": "savebite-web",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "dev": "pnpm --filter @savebite/web dev",
+    "build": "pnpm --filter @savebite/web build",
+    "typecheck": "pnpm --filter @savebite/web typecheck"
+  }
+}

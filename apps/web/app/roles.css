@@ -1,0 +1,12 @@
+.login-role-picker{display:grid;gap:9px;margin:0 0 16px}
+.login-role-picker button{display:flex;align-items:center;gap:12px;text-align:left;padding:12px;border:1px solid #e2e6dc;border-radius:11px;background:#fff;cursor:pointer;color:var(--ink)}
+.login-role-picker button.selected{border-color:#78a383;background:#f0f5ec;box-shadow:0 0 0 2px #e4eee2}
+.login-role-picker button>span:last-child{display:grid;gap:4px}
+.login-role-picker strong{font:700 12px Manrope,sans-serif}
+.login-role-picker small{color:#87958a;font-size:10px;line-height:1.4}
+.role-picker-mark{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none;font:800 15px Manrope,sans-serif}
+.consumer-mark{background:#e5eee2;color:#2b7654}
+.merchant-mark{background:#f6e9df;color:#aa543a}
+.workspace-switch{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 11px;border:1px solid #dfe5da;border-radius:9px;background:#fffefa;color:#486457;font-size:10px;font-weight:700;white-space:nowrap}
+.workspace-switch:hover{background:#f0f5ed;border-color:#bdcdbb}
+@media(max-width:720px){.workspace-switch{width:30px;min-height:30px;padding:0;border:0;background:transparent}.workspace-switch span{display:none}}
