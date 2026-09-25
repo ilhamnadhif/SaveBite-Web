@@ -93,7 +93,7 @@ jobs:
             -o UserKnownHostsFile="$RUNNER_TEMP/savebite-ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "cd /home/$VPS_USER/savebite-web && docker compose build --parallel 1 && docker compose up --detach --no-build && docker compose ps"
+            "cd /home/$VPS_USER/savebite-web && docker compose build web && docker compose up --detach --no-build && docker compose ps"
 
       - name: Verify public app port
         env:
