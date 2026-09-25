@@ -101,14 +101,14 @@ jobs:
         run: |
           ready=false
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error "http://$VPS_HOST:3000/" >/dev/null; then
+            if curl --fail --silent --show-error "http://$VPS_HOST:3002/" >/dev/null; then
               ready=true
               break
             fi
             sleep 2
           fi
           if [ "$ready" != true ]; then
-            echo "App on port 3000 did not become reachable"
+            echo "App on port 3002 did not become reachable"
             exit 1
           fi
 

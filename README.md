@@ -16,13 +16,13 @@ Aplikasi web SaveBite dalam satu Next.js App Router. Setelah login dengan satu a
 
 ## Deploy VPS
 
-Siapkan `.env` dari `.env.example`, gunakan callback `http://<ip-vps>:3000/auth/callback`, kosongkan `NEXT_PUBLIC_COOKIE_DOMAIN`, dan buka port TCP 3000 di firewall. Jalankan:
+Siapkan `.env` dari `.env.example`, gunakan callback `http://<ip-vps>:3002/auth/callback`, kosongkan `NEXT_PUBLIC_COOKIE_DOMAIN`, dan buka port TCP 3002 di firewall. Jalankan:
 
 ```sh
 docker compose up --build -d
 ```
 
-Aplikasi konsumen tersedia pada `http://<ip-vps>:3000/`, dan portal merchant pada `http://<ip-vps>:3000/merchant`.
+Aplikasi konsumen tersedia pada `http://<ip-vps>:3002/`, dan portal merchant pada `http://<ip-vps>:3002/merchant`.
 
 GitHub Actions menjalankan typecheck dan build pada push ke `main`, lalu mengirim source ke `/home/ubuntu/savebite-web` dan membangun/menjalankan Docker di VPS. Siapkan repository secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, dan `VPS_KNOWN_HOSTS`. File `.env` tetap tersimpan di VPS.
 

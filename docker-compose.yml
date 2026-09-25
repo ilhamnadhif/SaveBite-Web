@@ -22,7 +22,7 @@ services:
       NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: ${NEXT_PUBLIC_MIDTRANS_CLIENT_KEY:-}
       NEXT_PUBLIC_MIDTRANS_ENVIRONMENT: ${NEXT_PUBLIC_MIDTRANS_ENVIRONMENT:-sandbox}
     ports:
-      - "3000:3000"
+      - "3002:3000"
     restart: unless-stopped
     networks: [savebite]
 
