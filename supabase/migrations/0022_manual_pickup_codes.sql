@@ -11,6 +11,7 @@ create table if not exists private.pickup_manual_codes (
   expires_at timestamptz not null,
   issued_at timestamptz not null default now()
 );
+alter table private.pickup_manual_codes enable row level security;
 revoke all on table private.pickup_manual_codes from public, anon, authenticated, service_role;
 
 create table if not exists private.pickup_manual_code_attempts (
@@ -20,6 +21,7 @@ create table if not exists private.pickup_manual_code_attempts (
 );
 create index if not exists pickup_manual_attempts_merchant_time_idx
   on private.pickup_manual_code_attempts (merchant_id, failed_at desc);
+alter table private.pickup_manual_code_attempts enable row level security;
 revoke all on table private.pickup_manual_code_attempts from public, anon, authenticated, service_role;
 
 create or replace function public.issue_pickup_manual_code(p_order_id uuid)
