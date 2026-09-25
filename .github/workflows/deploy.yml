@@ -106,7 +106,7 @@ jobs:
               break
             fi
             sleep 2
-          fi
+          done
           if [ "$ready" != true ]; then
             echo "App on port 3002 did not become reachable"
             exit 1
