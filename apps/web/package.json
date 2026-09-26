@@ -6,7 +6,10 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@savebite/web-shared": "workspace:*",
@@ -21,10 +24,17 @@
     "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/leaflet": "^1.9.16",
     "@types/node": "^22.13.0",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
-    "typescript": "^5.8.3"
+    "@vitejs/plugin-react": "^4.7.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.11"
   }
 }

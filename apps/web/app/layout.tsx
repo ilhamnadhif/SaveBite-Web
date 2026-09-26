@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "./app.css";
 import "./merchant.css";
 import "./roles.css";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 import SaveBiteFrame from "../components/SaveBiteFrame";
 export const metadata: Metadata = { title: "SaveBite — Selamatkan makanan enak", description: "Temukan surplus food, kelola toko, dan selamatkan makanan bersama SaveBite." };
 export default function RootLayout({ children }: { children: ReactNode }) {

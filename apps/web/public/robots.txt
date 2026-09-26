@@ -1,0 +1,13 @@
+# The merchant workspace and account pages are not useful to a crawler and are
+# rendered per-session; keep them out of the index.
+User-agent: *
+Allow: /
+Disallow: /merchant
+Disallow: /api/
+Disallow: /auth/
+Disallow: /checkout/
+Disallow: /orders
+Disallow: /profile
+Disallow: /notifications
+Disallow: /reviews/
+Disallow: /search

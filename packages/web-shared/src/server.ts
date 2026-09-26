@@ -1,30 +1,37 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { publicConfig } from "./env";
 
 export async function supabaseServer() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("Supabase web environment is not configured.");
+  const { supabaseUrl, supabaseAnonKey } = publicConfig();
   const cookieStore = await cookies();
-  const domain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN?.trim() || undefined;
-  return createServerClient(url, key, {
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, {
-              ...options,
-              ...(domain ? { domain } : {}),
-              path: "/",
-              sameSite: "lax",
-              secure: process.env.NODE_ENV === "production",
-            }),
-          );
+          for (const { name, value, options } of cookiesToSet) {
+            // Spread the Supabase-provided options first so `maxAge`,
+            // `httpOnly`, etc. survive, then apply our own hard requirements.
+            cookieStore.set(name, value, { ...options, ...authCookieOverrides(options.secure) });
+          }
         } catch {
-          // Server components cannot write cookies; middleware performs refreshes.
+          // Server Components cannot mutate cookies. The middleware performs
+          // every session refresh; swallowing here is intentional and matches
+          // the documented @supabase/ssr pattern.
         }
       },
     },
   });
+}
+
+function authCookieOverrides(supabaseSecure: boolean | undefined) {
+  const domain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN?.trim();
+  return {
+    ...(domain ? { domain } : {}),
+    path: "/",
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production" || supabaseSecure === true,
+  };
 }

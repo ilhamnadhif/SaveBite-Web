@@ -1,15 +1,220 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MapPin, UploadCloud } from "lucide-react";
-import { PageHeading, Panel } from "@savebite/web-shared";
+import {
+  PageHeading,
+  Panel,
+  describeError,
+  parseCoordinate,
+  requiredText,
+  storageObjectPath,
+  useAsyncData,
+  validateImageFile,
+  verifyImageSignature,
+} from "@savebite/web-shared";
 import { supabaseBrowser } from "@savebite/web-shared/client";
 import type { Merchant } from "../../../components/MerchantData";
 
-export default function MerchantProfilePage(){
- const [store,setStore]=useState<Merchant|null>(null);const [form,setForm]=useState({store_name:"",category:"Bakery",description:"",address:"",open_time:"",close_time:"",lat:"",lng:""});const [logo,setLogo]=useState<File|null>(null);const [ownerId,setOwnerId]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [error,setError]=useState("");
- useEffect(()=>{void supabaseBrowser().rpc("get_my_merchant").then(async({data})=>{const m=data as Merchant|null;if(m){setStore(m);setForm({store_name:m.store_name,category:m.category??"Bakery",description:m.description??"",address:m.address??"",open_time:m.open_time??"08.00",close_time:m.close_time??"21.00",lat:m.lat==null?"":String(m.lat),lng:m.lng==null?"":String(m.lng)});const {data:a}=await supabaseBrowser().auth.getUser();setOwnerId(a.user?.id??"")}})},[]);
- async function save(e:FormEvent){e.preventDefault();if(!store)return;setBusy(true);setError("");setMessage("");let logoUrl=store.logo_url??null;const db=supabaseBrowser();try{if(logo){const path=ownerId+"/"+Date.now()+"-"+logo.name.replace(/[^a-zA-Z0-9._-]/g,"");const {error:e1}=await db.storage.from("store-logos").upload(path,logo,{upsert:true,contentType:logo.type});if(e1)throw e1;logoUrl=db.storage.from("store-logos").getPublicUrl(path).data.publicUrl}const {error:e2}=await db.from("merchants").update({store_name:form.store_name.trim(),category:form.category,description:form.description.trim(),address:form.address.trim(),open_time:form.open_time,close_time:form.close_time,lat:form.lat?Number(form.lat):null,lng:form.lng?Number(form.lng):null,logo_url:logoUrl}).eq("id",store.id);if(e2)throw e2;setMessage("Profil toko berhasil disimpan.")}catch(e){setError(e instanceof Error?e.message:"Profil belum dapat disimpan.")}finally{setBusy(false)}}
- async function locate(){navigator.geolocation?.getCurrentPosition(({coords})=>setForm(v=>({...v,lat:String(coords.latitude),lng:String(coords.longitude)})),()=>setError("Lokasi tidak tersedia."))}
- return <><PageHeading eyebrow="IDENTITAS TOKO" title="Profil toko" description="Informasi ini tampil pada katalog dan peta konsumen."/><Panel className="profile-panel">{!store?<div className="loading-screen"><span className="spinner"/>Memuat profil…</div>:<form onSubmit={(e)=>void save(e)}><div className="store-profile-header">{store.logo_url?<img src={store.logo_url} alt="Logo toko"/>:<span>S</span>}<div><strong>{store.store_name}</strong><small>{store.review_count??0} ulasan · rating {Number(store.rating??0).toFixed(1)}</small></div></div><div className="form-grid"><div className="field"><label>Nama toko</label><input value={form.store_name} onChange={e=>setForm({...form,store_name:e.target.value})} required maxLength={100}/></div><div className="field"><label>Kategori</label><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{["Bakery","Cafe","Restaurant","Grocery","Dessert","Other"].map(v=><option key={v}>{v}</option>)}</select></div><div className="field wide"><label>Deskripsi</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></div><div className="field wide"><label>Alamat</label><input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} required/></div><div className="field"><label>Jam buka</label><input value={form.open_time} onChange={e=>setForm({...form,open_time:e.target.value})}/></div><div className="field"><label>Jam tutup</label><input value={form.close_time} onChange={e=>setForm({...form,close_time:e.target.value})}/></div><div className="field"><label>Latitude</label><input value={form.lat} onChange={e=>setForm({...form,lat:e.target.value})}/></div><div className="field"><label>Longitude</label><input value={form.lng} onChange={e=>setForm({...form,lng:e.target.value})}/></div><div className="field wide"><label>Logo toko</label><label className="image-picker"><UploadCloud size={18}/><span>{logo?.name||"Pilih gambar logo"}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setLogo(e.target.files?.[0]??null)}/></label></div></div><button type="button" className="button button-secondary" onClick={()=>void locate()}><MapPin size={14}/>Gunakan lokasi saya</button>{message&&<div className="alert alert-success">{message}</div>}{error&&<div className="alert alert-error">{error}</div>}<div className="form-submit-row"><button className="button button-primary" disabled={busy}>{busy?"Menyimpan…":"Simpan profil toko"}</button></div></form>}</Panel></>;
+const CATEGORIES = ["Bakery", "Cafe", "Restaurant", "Grocery", "Dessert", "Other"];
+const LOGO_BUCKET = "store-logos";
+const MAX_STORE_NAME = 100;
+const MAX_DESCRIPTION = 1000;
+const MAX_ADDRESS = 300;
+
+export default function MerchantProfilePage() {
+  const [form, setForm] = useState({ store_name: "", category: "Bakery", description: "", address: "", open_time: "", close_time: "", lat: "", lng: "" });
+  const [logo, setLogo] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const hydrated = useRef(false);
+
+  const { data: store, loading, error: loadError, reload } = useAsyncData<Merchant | null>(
+    async () => {
+      const { data, error: rpcError } = await supabaseBrowser().rpc("get_my_merchant");
+      if (rpcError) throw rpcError;
+      return (data ?? null) as Merchant | null;
+    },
+    { scope: "merchantProfile.load", initialData: null },
+  );
+
+  // Hydrate once; a background reload must not clobber in-progress edits.
+  const seed = store;
+  useEffect(() => {
+    if (!seed || hydrated.current) return;
+    hydrated.current = true;
+    setForm({
+      store_name: seed.store_name,
+      category: seed.category ?? "Bakery",
+      description: seed.description ?? "",
+      address: seed.address ?? "",
+      open_time: seed.open_time ?? "08.00",
+      close_time: seed.close_time ?? "21.00",
+      lat: seed.lat == null ? "" : String(seed.lat),
+      lng: seed.lng == null ? "" : String(seed.lng),
+    });
+  }, [seed]);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!store || busy) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const db = supabaseBrowser();
+      const storeName = requiredText(form.store_name, MAX_STORE_NAME);
+      if (!storeName) throw new Error("Nama toko wajib diisi.");
+      const address = requiredText(form.address, MAX_ADDRESS);
+      if (!address) throw new Error("Alamat toko wajib diisi.");
+
+      const lat = form.lat ? parseCoordinate(form.lat, "lat") : null;
+      const lng = form.lng ? parseCoordinate(form.lng, "lng") : null;
+      if (form.lat && lat === null) throw new Error("Latitude harus antara -90 dan 90.");
+      if (form.lng && lng === null) throw new Error("Longitude harus antara -180 dan 180.");
+      if ((lat === null) !== (lng === null)) {
+        throw new Error("Isi latitude dan longitude sekaligus, atau kosongkan keduanya.");
+      }
+
+      let logoUrl: string | null = store.logo_url ?? null;
+      if (logo) {
+        const shallow = validateImageFile(logo);
+        if (!shallow.ok) throw new Error(shallow.error);
+        const verified = await verifyImageSignature(logo);
+        if (!verified.ok) throw new Error(verified.error);
+
+        const { data: auth } = await db.auth.getUser();
+        const ownerId = auth.user?.id ?? "";
+        if (!ownerId) throw new Error("Sesi kamu sudah berakhir. Silakan masuk kembali.");
+
+        const path = storageObjectPath(ownerId, logo, "logo");
+        const { error: uploadError } = await db.storage.from(LOGO_BUCKET).upload(path, logo, {
+          upsert: false,
+          contentType: verified.type,
+          cacheControl: "31536000",
+        });
+        if (uploadError) throw uploadError;
+        logoUrl = db.storage.from(LOGO_BUCKET).getPublicUrl(path).data.publicUrl;
+      }
+
+      const { error: updateError } = await db
+        .from("merchants")
+        .update({
+          store_name: storeName,
+          category: form.category,
+          description: requiredText(form.description, MAX_DESCRIPTION) ?? "",
+          address,
+          open_time: form.open_time.trim().slice(0, 20),
+          close_time: form.close_time.trim().slice(0, 20),
+          lat,
+          lng,
+          logo_url: logoUrl,
+        })
+        .eq("id", store.id);
+      if (updateError) throw updateError;
+      setMessage("Profil toko berhasil disimpan.");
+    } catch (caught) {
+      setError(describeError(caught, "merchantProfile.save", { merchantId: store.id }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function locate() {
+    if (!navigator.geolocation) {
+      setError("Perangkat kamu tidak mendukung pengambilan lokasi.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setForm((current) => ({ ...current, lat: String(coords.latitude), lng: String(coords.longitude) }));
+        setLocating(false);
+      },
+      () => {
+        setError("Lokasi tidak tersedia.");
+        setLocating(false);
+      },
+      { timeout: 10_000, maximumAge: 300_000 },
+    );
+  }
+
+  return <>
+    <PageHeading eyebrow="IDENTITAS TOKO" title="Profil toko" description="Informasi ini tampil pada katalog dan peta konsumen."/>
+    <Panel className="profile-panel">
+      {loadError && <div className="alert alert-error" role="alert">{loadError} <button className="text-link" onClick={reload}>Coba lagi</button></div>}
+      {loading && !store ? (
+        <div className="loading-screen" aria-busy="true"><span className="spinner"/>Memuat profil…</div>
+      ) : !store ? (
+        <div className="alert alert-error" role="alert">Toko belum ditemukan.</div>
+      ) : (
+        <form onSubmit={(event) => void save(event)}>
+          <div className="store-profile-header">
+            {store.logo_url
+              ? <img src={store.logo_url} alt={`Logo ${store.store_name}`} width={48} height={48} loading="eager" decoding="async" referrerPolicy="no-referrer"/>
+              : <span aria-hidden="true">S</span>}
+            <div>
+              <strong>{store.store_name}</strong>
+              <small>{store.review_count ?? 0} ulasan · rating {Number(store.rating ?? 0).toFixed(1)}</small>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="p-store-name">Nama toko</label>
+              <input id="p-store-name" value={form.store_name} onChange={(event) => setForm({ ...form, store_name: event.target.value })} required maxLength={MAX_STORE_NAME}/>
+            </div>
+            <div className="field">
+              <label htmlFor="p-category">Kategori</label>
+              <select id="p-category" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>
+                {CATEGORIES.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </div>
+            <div className="field wide">
+              <label htmlFor="p-description">Deskripsi</label>
+              <textarea id="p-description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} maxLength={MAX_DESCRIPTION}/>
+            </div>
+            <div className="field wide">
+              <label htmlFor="p-address">Alamat</label>
+              <input id="p-address" value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} required maxLength={MAX_ADDRESS}/>
+            </div>
+            <div className="field">
+              <label htmlFor="p-open">Jam buka</label>
+              <input id="p-open" value={form.open_time} onChange={(event) => setForm({ ...form, open_time: event.target.value })} maxLength={20}/>
+            </div>
+            <div className="field">
+              <label htmlFor="p-close">Jam tutup</label>
+              <input id="p-close" value={form.close_time} onChange={(event) => setForm({ ...form, close_time: event.target.value })} maxLength={20}/>
+            </div>
+            <div className="field">
+              <label htmlFor="p-lat">Latitude</label>
+              <input id="p-lat" value={form.lat} onChange={(event) => setForm({ ...form, lat: event.target.value })} inputMode="decimal"/>
+            </div>
+            <div className="field">
+              <label htmlFor="p-lng">Longitude</label>
+              <input id="p-lng" value={form.lng} onChange={(event) => setForm({ ...form, lng: event.target.value })} inputMode="decimal"/>
+            </div>
+            <div className="field wide">
+              <label htmlFor="p-logo">Logo toko</label>
+              <label className="image-picker" htmlFor="p-logo">
+                <UploadCloud size={18}/>
+                <span>{logo?.name || "Pilih gambar logo (maks. 5 MB)"}</span>
+                <input id="p-logo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogo(event.target.files?.[0] ?? null)}/>
+              </label>
+            </div>
+          </div>
+          <button type="button" className="button button-secondary" disabled={locating} onClick={locate}>
+            <MapPin size={14}/>{locating ? "Mencari lokasi…" : "Gunakan lokasi saya"}
+          </button>
+          {message && <div className="alert alert-success" role="status">{message}</div>}
+          {error && <div className="alert alert-error" role="alert">{error}</div>}
+          <div className="form-submit-row">
+            <button className="button button-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan profil toko"}</button>
+          </div>
+        </form>
+      )}
+    </Panel>
+  </>;
 }

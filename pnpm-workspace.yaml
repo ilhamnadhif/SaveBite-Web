@@ -1,3 +1,23 @@
 packages:
   - apps/*
   - packages/*
+
+# pnpm >=10 stores settings here (not in package.json#pnpm).
+# Pinning the allowlist keeps `pnpm install --frozen-lockfile` deterministic in
+# CI and in the Docker build instead of silently skipping native postinstalls.
+# `esbuild` is required by vitest; `sharp` by Next.js image optimisation.
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+# Security overrides.
+#
+# next@15.5.x pins postcss@8.4.31, which carries two high-severity advisories
+# (GHSA-7fh5-64p2-3v2j arbitrary file read via attacker-controlled CSS
+# comments, and GHSA-r28c-9q8g-f849 path traversal in source-map auto-loading).
+# The whole 15.5 line still pins the vulnerable version, so the fix has to be an
+# override rather than a version bump. postcss 8.5.x is API compatible with
+# 8.4.x, so this is a drop-in; drop the override once next ships a patched
+# postcss (tracked by the `pnpm audit --audit-level=high` CI step).
+overrides:
+  postcss: ">=8.5.23"

@@ -2,7 +2,7 @@
 import { AuthProvider, AppFrame } from "@savebite/web-shared";
 import { Compass, Heart, Map, PackageCheck, UserRound, Bell, LayoutDashboard, Package, ClipboardList, ScanLine, Wallet, Star, Store } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 const consumerNav = [
   { href: "/", label: "Jelajahi", icon: Compass },
   { href: "/map", label: "Peta", icon: Map },
@@ -23,6 +23,6 @@ const merchantNav = [
 function RoutedFrame({ children }: { children: ReactNode }) {
   const path = usePathname();
   const merchant = path === "/merchant" || path.startsWith("/merchant/");
-  return <AppFrame appName={merchant ? "SaveBite Merchant" : "SaveBite"} kicker={merchant ? "MERCHANT STUDIO" : "GOOD FOOD, LESS WASTE"} nav={merchant ? merchantNav : consumerNav} merchant={merchant}>{children}</AppFrame>;
+  return <AppFrame kicker={merchant ? "MERCHANT STUDIO" : "GOOD FOOD, LESS WASTE"} nav={merchant ? merchantNav : consumerNav} merchant={merchant}>{children}</AppFrame>;
 }
 export default function ConsumerFrame({children}:{children:ReactNode}) { return <AuthProvider><RoutedFrame>{children}</RoutedFrame></AuthProvider>; }

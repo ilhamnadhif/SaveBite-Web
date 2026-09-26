@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Bell, LogOut, Search, Store, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AuthGate, useAuth } from "./auth";
+import { authCallbackUrl, safeNextPath } from "./redirect";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon };
-export function AppFrame({ appName, kicker, logo = "S", nav, children, merchant = false }: {
-  appName: string; kicker: string; logo?: string; nav: NavItem[]; children: ReactNode; merchant?: boolean;
+export function AppFrame({ kicker, logo = "S", nav, children, merchant = false }: {
+  kicker: string; logo?: string; nav: NavItem[]; children: ReactNode; merchant?: boolean;
 }) {
   const path = usePathname();
   const router = useRouter();
@@ -73,27 +74,73 @@ export function StatusPill({ status }: { status: string }) {
   return <span className={`status-pill status-${status}`}>{labels[status] ?? status}</span>;
 }
 
-export function LoginCard({ initialMerchant = false, error }: { initialMerchant?: boolean; error?: string | null }) {
+/**
+ * Image for merchant-uploaded content.
+ *
+ * These URLs are only known at runtime (public Supabase Storage buckets), so
+ * `next/image` would need a remote pattern and would proxy every photo through
+ * this 1-CPU VPS. Using a plain `<img>` with explicit loading hints avoids a
+ * pointless optimisation proxy while still deferring off-screen work.
+ *
+ * `alt` is a required prop so decorative use is always a deliberate decision.
+ */
+export function SmartImage({
+  src,
+  alt,
+  className,
+  priority = false,
+  width,
+  height,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  priority?: boolean;
+  width?: number;
+  height?: number;
+}) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      width={width}
+      height={height}
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : "auto"}
+      decoding="async"
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
+export function LoginCard({ initialMerchant = false, error, next }: { initialMerchant?: boolean; error?: string | null; next?: string }) {
   const [merchant, setMerchant] = useState(initialMerchant);
   const { user, loading } = useAuth();
   const router = useRouter();
-  const target = merchant ? "/merchant" : "/";
+  // `next` is attacker-controllable, so it is sanitised and constrained to the
+  // workspace the user actually chose. Falling back to the workspace root keeps
+  // the previous behaviour when no (or an invalid) target is present.
+  const target = next
+    ? safeNextPath(next, { fallback: "", requirePrefix: merchant ? "/merchant" : "/" })
+    : merchant ? "/merchant" : "/";
+  const resolvedTarget = target || (merchant ? "/merchant" : "/");
   const label = merchant ? "Selamat datang, Merchant" : "Selamat datang di SaveBite";
-  return <main className="login-screen"><div className="login-card"><Link className="brand-lockup login-brand" href="/"><span className="brand-mark">S</span><span><strong>savebite</strong><small>GOOD FOOD, LESS WASTE</small></span></Link><div className="eyebrow">PILIH CARA MENGGUNAKAN SAVEBITE</div><h1>{label}</h1><p>{merchant ? "Kelola toko, surprise bag, pesanan, dan pickup pelanggan." : "Temukan dan pesan Surprise Bag dari toko di sekitarmu."}</p><div className="login-role-picker" role="group" aria-label="Pilih peran"><button type="button" className={!merchant ? "selected" : ""} aria-pressed={!merchant} onClick={() => setMerchant(false)}><span className="role-picker-mark consumer-mark">S</span><span><strong>Konsumen</strong><small>Cari makanan enak dengan harga hemat</small></span></button><button type="button" className={merchant ? "selected" : ""} aria-pressed={merchant} onClick={() => setMerchant(true)}><span className="role-picker-mark merchant-mark"><Store size={18}/></span><span><strong>Merchant</strong><small>Selamatkan stok dan kelola toko</small></span></button></div>{error && <div className="alert alert-error">{error}</div>}{user ? <button className="google-button" disabled={loading} onClick={() => router.push(target)}>{merchant ? "Lanjutkan sebagai Merchant" : "Lanjutkan sebagai Konsumen"}</button> : <GoogleLoginButton merchant={merchant}/>}<small className="login-foot">Satu akun SaveBite bisa digunakan untuk kedua peran.</small></div></main>;
+  return <main className="login-screen"><div className="login-card"><Link className="brand-lockup login-brand" href="/"><span className="brand-mark">S</span><span><strong>savebite</strong><small>GOOD FOOD, LESS WASTE</small></span></Link><div className="eyebrow">PILIH CARA MENGGUNAKAN SAVEBITE</div><h1>{label}</h1><p>{merchant ? "Kelola toko, surprise bag, pesanan, dan pickup pelanggan." : "Temukan dan pesan Surprise Bag dari toko di sekitarmu."}</p><div className="login-role-picker" role="group" aria-label="Pilih peran"><button type="button" className={!merchant ? "selected" : ""} aria-pressed={!merchant} onClick={() => setMerchant(false)}><span className="role-picker-mark consumer-mark">S</span><span><strong>Konsumen</strong><small>Cari makanan enak dengan harga hemat</small></span></button><button type="button" className={merchant ? "selected" : ""} aria-pressed={merchant} onClick={() => setMerchant(true)}><span className="role-picker-mark merchant-mark"><Store size={18}/></span><span><strong>Merchant</strong><small>Selamatkan stok dan kelola toko</small></span></button></div>{error && <div className="alert alert-error" role="alert">{error}</div>}{user ? <button className="google-button" disabled={loading} onClick={() => router.push(resolvedTarget)}>{merchant ? "Lanjutkan sebagai Merchant" : "Lanjutkan sebagai Konsumen"}</button> : <GoogleLoginButton merchant={merchant}/>}<small className="login-foot">Satu akun SaveBite bisa digunakan untuk kedua peran.</small></div></main>;
 }
 
 export function GoogleLoginButton({ merchant = false }: { merchant?: boolean }) {
   const router = useRouter();
   return <button className="google-button" onClick={async () => {
-    const supabase = (await import("./client")).supabaseBrowser();
+    // Imported lazily so the browser client is only constructed on click.
+    const { supabaseBrowser } = await import("./client");
     const params = new URLSearchParams(window.location.search);
-    const requestedNext = params.get("next");
-    const nextMatchesRole = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") && (merchant === requestedNext.startsWith("/merchant"));
-    const next = nextMatchesRole ? requestedNext : merchant ? "/merchant" : "/";
-    const callback = process.env.NEXT_PUBLIC_AUTH_CALLBACK_URL;
-    const redirectTo = new URL(callback || "/auth/callback", window.location.origin);
-    redirectTo.searchParams.set("next", next);
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectTo.toString(), queryParams: { access_type: "offline", prompt: "select_account" } } });
+    const requested = safeNextPath(params.get("next"), {
+      fallback: "",
+      requirePrefix: merchant ? "/merchant" : "/",
+    });
+    const next = requested || (merchant ? "/merchant" : "/");
+    const { error } = await supabaseBrowser().auth.signInWithOAuth({ provider: "google", options: { redirectTo: authCallbackUrl(window.location.origin, next), queryParams: { access_type: "offline", prompt: "select_account" } } });
     if (error) router.push("/login?error=" + encodeURIComponent(error.message));
   }}><span className="google-g">G</span>Lanjutkan dengan Google</button>;
 }

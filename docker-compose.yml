@@ -15,6 +15,10 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
+      # LOG_LEVEL: debug|info|warn|error -- logs are single-line JSON on stdout/stderr.
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Fail fast and loudly if the bundle was built without required config
+      # instead of serving a broken app.
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env}
       NEXT_PUBLIC_AUTH_CALLBACK_URL: ${NEXT_PUBLIC_AUTH_CALLBACK_URL:?Set NEXT_PUBLIC_AUTH_CALLBACK_URL in .env}
@@ -24,12 +28,26 @@ services:
     ports:
       - "3002:3000"
     restart: unless-stopped
+    # tini as PID 1 so SIGTERM reaches Next and in-flight requests drain.
+    init: true
+    # Next closes its listener and finishes in-flight work on SIGTERM; give it
+    # 30s before SIGKILL, otherwise a slow response is cut off mid-write.
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
     networks: [savebite]
 
   caddy:
     profiles: ["custom-domain"]
     image: caddy:2-alpine
     restart: unless-stopped
+    stop_grace_period: 15s
     environment:
       ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
@@ -42,7 +60,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
+      web:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
     networks: [savebite]
 
 networks:
