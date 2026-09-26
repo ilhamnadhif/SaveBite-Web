@@ -71,7 +71,7 @@ Jika domain tersedia, profil Caddy dapat diaktifkan dengan `docker compose --pro
 
 1. **validate** — `check:migrations` → `lint` → `typecheck` → `test` → `build` → `pnpm audit --audit-level=high` → `docker compose config`.
 2. **docker** — build image sungguhan dan smoke test `/api/health` pada container hasil build.
-3. **deploy** (hanya pada `main` dan bila repository variable `SAVEBITE_DEPLOY_ENABLED` = `true`) — rsync ke VPS, `docker compose up`, lalu menunggu `/api/ready` dan memverifikasi security header pada respons.
+3. **deploy** (hanya pada `main` dan bila repository variable `SAVEBITE_DEPLOY_ENABLED` = `true`) — rsync ke VPS, membangun/menjalankan Compose, menunggu healthcheck Docker berstatus `healthy`, lalu memverifikasi `/api/ready`, security header, dan log error terbaru.
 
 Siapkan repository secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, dan `VPS_KNOWN_HOSTS`. File `.env` tetap tersimpan di VPS dan tidak pernah di-sync.
 

@@ -158,7 +158,16 @@ jobs:
             -o UserKnownHostsFile="$RUNNER_TEMP/savebite-ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "cd /home/$VPS_USER/savebite-web && docker compose build web && docker compose up --detach --no-build && docker compose ps"
+            "cd /home/$VPS_USER/savebite-web && docker compose build web && docker compose up --detach --no-build"
+
+      - name: Wait for Docker health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh_options=(-i "$RUNNER_TEMP/savebite-ssh/id_ed25519" -o UserKnownHostsFile="$RUNNER_TEMP/savebite-ssh/known_hosts" -o StrictHostKeyChecking=yes)
+          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" \
+            "cd /home/$VPS_USER/savebite-web && for attempt in \$(seq 1 40); do container_id=\$(docker compose ps -q web); health=\$(docker inspect --format '{{.State.Health.Status}}' \"\$container_id\" 2>/dev/null || true); if [ \"\$health\" = healthy ]; then docker compose ps; exit 0; fi; sleep 3; done; docker compose ps; docker compose logs --tail=100 web; exit 1"
 
       - name: Wait for readiness
         env:
