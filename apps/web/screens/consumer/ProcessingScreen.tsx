@@ -362,6 +362,14 @@ class ProcessingState {
     });
   };
 
+  /** The card reopened the checkout itself; an earlier load error is stale. */
+  handleSnapReopen = () => {
+    if (!this.mounted || this.navigated || this.error === null) return;
+    this.setState(() => {
+      this.error = null;
+    });
+  };
+
   checkStatus = async () => {
     const order = this.order;
     if (this.checking || order === null || this.navigated || !this.mounted) return;
@@ -475,6 +483,7 @@ export function ProcessingScreen({ bag, qty, method, idempotencyKey, existingOrd
                 reloadEpoch={state.snapReloadEpoch}
                 onStatusHint={state.handleSnapStatusHint}
                 onError={state.handleSnapError}
+                onReopen={state.handleSnapReopen}
               />
             ) : (
               <QrisCard qrUri={qrUri} reloadEpoch={state.legacyQrReloadEpoch} />
@@ -539,11 +548,13 @@ function SnapCard({
   reloadEpoch,
   onStatusHint,
   onError,
+  onReopen,
 }: {
   session: SnapCheckoutSession;
   reloadEpoch: number;
   onStatusHint: () => void;
   onError: (message: string) => void;
+  onReopen: () => void;
 }) {
   return (
     <div
@@ -561,14 +572,14 @@ function SnapCard({
         <h2 style={ui(15, { weight: 800, color: C.green })}>Pembayaran QRIS</h2>
       </div>
       <Divider color={M3_OUTLINE_VARIANT} />
-      <div style={{ height: 560 }}>
-        <SnapCheckoutView
-          key={`snap-${session.environment}-${session.token}-${reloadEpoch}`}
-          session={session}
-          onStatusHint={onStatusHint}
-          onError={onError}
-        />
-      </div>
+      {/* The checkout fills 560 px like the mobile WebView; its status panels are compact. */}
+      <SnapCheckoutView
+        key={`snap-${session.environment}-${session.token}-${reloadEpoch}`}
+        session={session}
+        onStatusHint={onStatusHint}
+        onError={onError}
+        onReopen={onReopen}
+      />
     </div>
   );
 }
