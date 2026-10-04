@@ -71,9 +71,9 @@ const PROCESSING_ROUTE = "/consumer/checkout/processing";
 export const specs = {
   onboarding: (): RouteSpec => ({ url: paths.onboarding(), build: () => <OnboardingScreen /> }),
   fork: (): RouteSpec => ({ url: paths.fork(), build: () => <ForkScreen /> }),
-  login: (merchant: boolean, next?: string): RouteSpec => ({
+  login: (merchant: boolean, next?: string, errorCode?: string | null): RouteSpec => ({
     url: paths.login(merchant, next),
-    build: () => <LoginScreen merchant={merchant} next={next} />,
+    build: () => <LoginScreen merchant={merchant} next={next} errorCode={errorCode} />,
   }),
   startupError: (message: string): RouteSpec => ({
     url: typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`,
@@ -258,7 +258,7 @@ function stackFor(match: RouteMatch, query: URLSearchParams): RouteSpec[] {
       return [appState.onboardingSeen ? specs.fork() : specs.onboarding()];
     case "login": {
       const merchantRole = query.get("role") === "merchant";
-      return [specs.fork(), specs.login(merchantRole, query.get("next") ?? undefined)];
+      return [specs.fork(), specs.login(merchantRole, query.get("next") ?? undefined, query.get("error"))];
     }
     case "legal":
       return [signedIn ? shellForMode(4) : specs.fork(), specs.legal(match.document)];

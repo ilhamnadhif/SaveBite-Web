@@ -2,6 +2,7 @@
 
 /**
  * Supabase Auth for the web — the counterpart of `services/auth_service.dart`.
+ * The web signs in with Google only.
  *
  * OAuth uses the PKCE redirect through `/auth/callback`, which exchanges the
  * code on the server so the middleware can refresh the session cookie.
@@ -48,15 +49,6 @@ export const AuthService = {
     return !error;
   },
 
-  async signInWithApple(next: string): Promise<boolean> {
-    if (!this.isConfigured) return false;
-    const { error } = await supabaseBrowser().auth.signInWithOAuth({
-      provider: "apple",
-      options: { redirectTo: authCallbackUrl(window.location.origin, next) },
-    });
-    return !error;
-  },
-
   /**
    * Email/password login for the internal E2E build only. Credentials come
    * from the form and are never stored by the app. Fails closed otherwise.
@@ -89,10 +81,3 @@ export const AuthService = {
     return refreshed.data.session ?? (await auth.getSession()).data.session;
   },
 };
-
-/** Apple sign-in shows on iOS/macOS browsers, like `defaultTargetPlatform`. */
-export function isApplePlatform(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? "";
-  return /mac|iphone|ipad|ipod/i.test(platform) || /iphone|ipad|ipod|macintosh/i.test(navigator.userAgent);
-}
