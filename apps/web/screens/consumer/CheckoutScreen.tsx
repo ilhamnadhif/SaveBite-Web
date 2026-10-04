@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AppNav } from "../../lib/appNav";
 import { appState } from "../../lib/appState";
 import { formatRupiah, type Bag } from "../../lib/models";
 import { useAppState } from "../../lib/useAppState";
@@ -11,6 +10,7 @@ import { Gap, QtyStepper, Screen, Scroll, SimpleHeader, safeBottom } from "../..
 import { Icon } from "../../ui/Icon";
 import { snack } from "../../ui/overlays";
 import { C, display, ui } from "../../ui/theme";
+import { startHostedCheckout } from "./hostedCheckout";
 
 const BACKEND_QUANTITY_LIMIT = 100;
 
@@ -25,15 +25,23 @@ const M3_ON_SURFACE_VARIANT = "#404944";
 export function CheckoutScreen({ bag }: { bag: Bag }) {
   const state = useAppState();
   const [qty, setQty] = useState(1);
-  const [selectedMethod] = useState("QRIS");
   const [navigating, setNavigating] = useState(false);
   const navigatingRef = useRef(false);
   const mounted = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
+    // Back from Midtrans can restore this page from the back/forward cache
+    // exactly as it was left, with the button still busy.
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      navigatingRef.current = false;
+      setNavigating(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       mounted.current = false;
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, []);
 
@@ -54,10 +62,11 @@ export function CheckoutScreen({ bag }: { bag: Bag }) {
     }
     navigatingRef.current = true;
     setNavigating(true);
-    AppNav.toProcessing({ bag, qty, method: selectedMethod });
-    // The push is synchronous. Reset the guard after the transition so the
-    // button works again without ever opening two screens at once.
-    await new Promise<void>((resolve) => setTimeout(resolve, 450));
+    // Straight to the Midtrans page: no payment screen of our own.
+    const result = await startHostedCheckout(bag, qty);
+    // The tab is leaving for Midtrans; keep the button busy until it does.
+    if (result.kind === "redirected") return;
+    if (result.kind === "failed") snack(result.message, "error_outline");
     if (mounted.current) {
       navigatingRef.current = false;
       setNavigating(false);
@@ -116,7 +125,7 @@ export function CheckoutScreen({ bag }: { bag: Bag }) {
         }}
       >
         <PrimaryButton
-          label={navigating ? "Menyiapkan pembayaran…" : `Lanjutkan · ${formatRupiah(total)}`}
+          label={navigating ? "Membuka halaman pembayaran…" : `Lanjutkan · ${formatRupiah(total)}`}
           onTap={navigating || bag.soldOut || bag.quantityLeft < 1 ? null : () => void continueToPayment()}
         />
       </div>
@@ -149,7 +158,7 @@ function ItemCard({ bag }: { bag: Bag }) {
   );
 }
 
-/** The single QRIS `ListTile` (Material 3 metrics: 16/24 padding, 16 gaps, min height 72). */
+/** The Midtrans `ListTile` (Material 3 metrics: 16/24 padding, 16 gaps, min height 72). */
 function MethodsCard() {
   return (
     <div style={{ background: C.white, borderRadius: 18, border: `1px solid ${C.border}`, overflow: "hidden" }}>
@@ -166,12 +175,12 @@ function MethodsCard() {
             flex: "none",
           }}
         >
-          <Icon name="qr_code_2_rounded" size={21} color={C.amber} />
+          <Icon name="payments_outlined" size={21} color={C.amber} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={ui(16, { weight: 400, color: M3_ON_SURFACE, height: 1.5, letterSpacing: 0.5 })}>QRIS</div>
+          <div style={ui(16, { weight: 400, color: M3_ON_SURFACE, height: 1.5, letterSpacing: 0.5 })}>Semua metode pembayaran</div>
           <div style={ui(14, { weight: 400, color: M3_ON_SURFACE_VARIANT, height: 1.43, letterSpacing: 0.25 })}>
-            Pindai dengan aplikasi pembayaran yang mendukung QRIS
+            QRIS, transfer bank, e-wallet, dan lainnya. Pilih di halaman Midtrans.
           </div>
         </div>
         <Icon name="verified_user_outlined" size={24} color={C.greenBright} />

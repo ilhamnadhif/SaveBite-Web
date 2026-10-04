@@ -20,8 +20,9 @@ const FAQS: readonly Faq[] = [
   {
     question: "Metode pembayaran apa saja?",
     answer:
-      "SaveBite memakai QRIS. Setelah checkout, pindai kode QR yang tampil " +
-      "langsung di aplikasi dengan aplikasi pembayaran yang mendukung QRIS.",
+      "Semua metode yang aktif di Midtrans: QRIS, transfer bank (virtual account), " +
+      "e-wallet, dan lainnya. Setelah checkout, kamu diarahkan ke halaman pembayaran " +
+      "Midtrans untuk memilih metode.",
   },
   {
     question: "Bagaimana kalau saya tidak jadi ambil?",
