@@ -112,7 +112,7 @@ Hanya nilai publik yang boleh ada di sini. Jangan masukkan service-role key, Mid
 
 ## Database
 
-Migrasi 0001–0021, 0024 (checkout Snap ter-hosting dengan semua metode, `MIDTRANS`) dan Edge Functions berada di repo Flutter (`../SaveBite/supabase`). Repo ini memuat 0022 (kode pickup manual, fitur web lama yang kini tidak dipakai UI — dipertahankan karena migrasi tidak boleh dihapus) dan 0023 (pembatasan MIME bucket gambar + Realtime `surprise_bags`).
+Rantai migrasi lengkap 0001–0024 dan Edge Functions berada di repo Flutter (`../SaveBite/supabase`), yang ter-link ke project Supabase; terapkan dengan `supabase db push` dari sana. Repo ini memuat 0022 (kode pickup manual, fitur web lama yang kini tidak dipakai UI — dipertahankan karena migrasi tidak boleh dihapus) dan 0023 (pembatasan MIME bucket gambar + Realtime `surprise_bags`); salinan identiknya ada di repo Flutter, dan `pnpm check:migrations` mengauditnya di sini. 0024 menambahkan checkout Snap ter-hosting dengan semua metode (`MIDTRANS`).
 
 ## Batasan yang diketahui
 
