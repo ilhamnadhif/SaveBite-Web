@@ -21,3 +21,15 @@ allowBuilds:
 # postcss (tracked by the `pnpm audit --audit-level=high` CI step).
 overrides:
   postcss: ">=8.5.23"
+
+# Advisories accepted for `pnpm audit` because no fixed release exists yet.
+#
+# GHSA-vfj7-8cjw-p6xm (braces <=3.0.3, stack exhaustion on deeply nested
+# patterns): reached only through @next/eslint-plugin-next > fast-glob >
+# micromatch, a lint-time dev dependency that never ships in the image's
+# runtime and only expands glob patterns written in this repository. The
+# advisory names 3.0.4 as the fix, which is not published on npm. Remove this
+# entry (and add an override) as soon as braces 3.0.4 is released.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
