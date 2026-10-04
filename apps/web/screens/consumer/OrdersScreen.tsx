@@ -12,6 +12,7 @@ import { StatusBadge } from "../../ui/chips";
 import { CenteredSpinner, EmptyState, Gap, RefreshScroll, Screen, Spacer, TabSwitch, safeTop } from "../../ui/common";
 import { Icon } from "../../ui/Icon";
 import { C, display, ellipsis, ui, withAlpha } from "../../ui/theme";
+import { resumeHostedPayment } from "./hostedCheckout";
 
 const TABS = ["Aktif", "Riwayat"];
 
@@ -215,7 +216,7 @@ function ActiveCard({ order }: { order: OrderRecord }) {
         {ready ? (
           <PrimaryButton label="Tampilkan QR pickup" height={44} fontSize={14} onTap={() => AppNav.toVoucher(order)} />
         ) : awaitingPayment ? (
-          <PrimaryButton label="Lanjutkan pembayaran" height={44} fontSize={14} onTap={() => AppNav.toResumePayment(order)} />
+          <PrimaryButton label="Lanjutkan pembayaran" height={44} fontSize={14} onTap={() => resumeHostedPayment(order)} />
         ) : (
           <div
             style={{

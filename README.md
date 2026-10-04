@@ -86,7 +86,7 @@ curl -fsS http://localhost:3002/api/ready
 ## Keamanan
 
 - **Otorisasi di database.** Semua data diambil browser langsung dari Supabase di bawah RLS, memakai view/RPC/Edge Function yang sama dengan mobile. HTML yang dikirim server tidak memuat data pengguna.
-- **Pembayaran.** Checkout QRIS dibuka lewat Snap.js resmi Midtrans. Callback Snap hanya pemicu sinkronisasi; status lunas selalu dari `midtrans-status` (Get Status di server). Kunci idempotensi checkout/penarikan disimpan sebelum request sehingga refresh atau retry tidak membuat pesanan ganda.
+- **Pembayaran.** Checkout membuat pesanan lalu langsung membuka halaman Snap Midtrans (metode `MIDTRANS`: semua metode yang aktif di akun merchant). URL halaman hanya diikuti bila lolos validasi host/path Snap resmi. Midtrans kembali lewat Edge Function `midtrans-return?target=web` ke `MIDTRANS_WEB_RETURN_URL` (`?savebite_payment_return=1` → tab Pesanan); status lunas selalu dari `midtrans-status` (Get Status di server) atau webhook. Kunci idempotensi checkout/penarikan disimpan sebelum request sehingga refresh atau retry tidak membuat pesanan ganda.
 - **QR pickup.** Token acak berumur pendek dari `issue_pickup_token`, dirotasi tiap 60 detik; merchant hanya dapat menebus token yang benar-benar dibaca kamera.
 - **Unggahan gambar.** Foto di-*encode* ulang di browser menjadi JPEG maks. 1280 px (sama dengan `imageQuality: 80, maxWidth: 1280` di Flutter), sehingga metadata EXIF/GPS terbuang dan file non-gambar tidak bisa lolos; batas 2 MB dan path `<uid>/…` tetap ditegakkan, lalu kebijakan bucket di Supabase.
 - **Open redirect.** `next` pada `/login` dan `/auth/callback` divalidasi `safeNextPath()` (hanya path same-origin).
@@ -112,7 +112,7 @@ Hanya nilai publik yang boleh ada di sini. Jangan masukkan service-role key, Mid
 
 ## Database
 
-Migrasi 0001–0021 dan Edge Functions berada di repo Flutter (`../SaveBite/supabase`). Repo ini memuat 0022 (kode pickup manual, fitur web lama yang kini tidak dipakai UI — dipertahankan karena migrasi tidak boleh dihapus) dan 0023 (pembatasan MIME bucket gambar + Realtime `surprise_bags`).
+Migrasi 0001–0021, 0024 (checkout Snap ter-hosting dengan semua metode, `MIDTRANS`) dan Edge Functions berada di repo Flutter (`../SaveBite/supabase`). Repo ini memuat 0022 (kode pickup manual, fitur web lama yang kini tidak dipakai UI — dipertahankan karena migrasi tidak boleh dihapus) dan 0023 (pembatasan MIME bucket gambar + Realtime `surprise_bags`).
 
 ## Batasan yang diketahui
 
