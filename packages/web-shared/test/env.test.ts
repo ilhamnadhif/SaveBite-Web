@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConfigError, authCookieOptions, configStatus, publicConfig, resetConfigCache } from "../src/env";
+import { ConfigError, authCookieOptions, authCookiesSecure, configStatus, publicConfig, resetConfigCache } from "../src/env";
 
 const ORIGINAL = { ...process.env };
 
@@ -105,6 +105,31 @@ describe("authCookieOptions", () => {
 
   it("never uses SameSite=Strict, which would break the OAuth round trip", () => {
     expect(authCookieOptions().sameSite).not.toBe("strict");
+  });
+});
+
+describe("authCookiesSecure", () => {
+  const nodeEnv = process.env.NODE_ENV;
+  afterEach(() => setEnv({ NODE_ENV: nodeEnv, NEXT_PUBLIC_AUTH_CALLBACK_URL: VALID.NEXT_PUBLIC_AUTH_CALLBACK_URL }));
+
+  // Browsers drop `Secure` cookies set over plain HTTP, which signed every
+  // user out right after the OAuth callback on the HTTP VPS deployment.
+  it("is off for an HTTP public origin, even in production", () => {
+    setEnv({ NEXT_PUBLIC_AUTH_CALLBACK_URL: "http://43.133.46.121:3002/auth/callback", NODE_ENV: "production" });
+    expect(authCookiesSecure()).toBe(false);
+    expect(authCookieOptions().secure).toBe(false);
+  });
+
+  it("is on for an HTTPS public origin", () => {
+    setEnv({ NEXT_PUBLIC_AUTH_CALLBACK_URL: "https://savebite.example/auth/callback", NODE_ENV: "development" });
+    expect(authCookiesSecure()).toBe(true);
+  });
+
+  it("falls back to the production flag without a usable callback URL", () => {
+    setEnv({ NEXT_PUBLIC_AUTH_CALLBACK_URL: "", NODE_ENV: "production" });
+    expect(authCookiesSecure()).toBe(true);
+    setEnv({ NEXT_PUBLIC_AUTH_CALLBACK_URL: "not a url", NODE_ENV: "development" });
+    expect(authCookiesSecure()).toBe(false);
   });
 });
 

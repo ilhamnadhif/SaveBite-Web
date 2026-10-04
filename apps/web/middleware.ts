@@ -23,6 +23,24 @@ function hasSessionCookie(request: NextRequest): boolean {
   return request.cookies.getAll().some((cookie) => SESSION_COOKIE.test(cookie.name));
 }
 
+/**
+ * Refreshed auth cookies are `Secure` only when the public origin is HTTPS.
+ * Browsers drop `Secure` cookies sent over plain HTTP (e.g. `http://<ip>:3002`),
+ * which would sign the user out on the next refresh. Mirrors
+ * `authCookiesSecure()` in web-shared, inlined to keep the Edge bundle small.
+ */
+function authCookiesSecure(): boolean {
+  const callback = process.env.NEXT_PUBLIC_AUTH_CALLBACK_URL?.trim();
+  if (callback) {
+    try {
+      return new URL(callback).protocol === "https:";
+    } catch {
+      // Reported by /api/ready; use the fallback below.
+    }
+  }
+  return process.env.NODE_ENV === "production";
+}
+
 function loginRedirect(request: NextRequest, response: NextResponse, headers: Headers): NextResponse {
   const target = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   const merchant = request.nextUrl.pathname === "/merchant" || request.nextUrl.pathname.startsWith("/merchant/");
@@ -173,7 +191,7 @@ export async function middleware(request: NextRequest) {
             ...(domain ? { domain } : {}),
             path: "/",
             sameSite: "lax",
-            secure: process.env.NODE_ENV === "production" || options.secure === true,
+            secure: authCookiesSecure(),
           }),
         );
         for (const [headerKey, headerValue] of headers) {
