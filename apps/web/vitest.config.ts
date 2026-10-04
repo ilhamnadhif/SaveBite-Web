@@ -14,7 +14,6 @@ export default defineConfig({
       { find: /^@savebite\/web-shared$/, replacement: shared("index.ts") },
       { find: /^@savebite\/web-shared\/server$/, replacement: shared("server.ts") },
       { find: /^@savebite\/web-shared\/client$/, replacement: shared("client.ts") },
-      { find: /^@savebite\/web-shared\/snap$/, replacement: shared("snap.ts") },
     ],
   },
   test: {
