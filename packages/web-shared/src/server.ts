@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { publicConfig } from "./env";
+import { authCookiesSecure, publicConfig } from "./env";
 
 export async function supabaseServer() {
   const { supabaseUrl, supabaseAnonKey } = publicConfig();
@@ -14,7 +14,7 @@ export async function supabaseServer() {
           for (const { name, value, options } of cookiesToSet) {
             // Spread the Supabase-provided options first so `maxAge`,
             // `httpOnly`, etc. survive, then apply our own hard requirements.
-            cookieStore.set(name, value, { ...options, ...authCookieOverrides(options.secure) });
+            cookieStore.set(name, value, { ...options, ...authCookieOverrides() });
           }
         } catch {
           // Server Components cannot mutate cookies. The middleware performs
@@ -26,12 +26,13 @@ export async function supabaseServer() {
   });
 }
 
-function authCookieOverrides(supabaseSecure: boolean | undefined) {
+function authCookieOverrides() {
   const domain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN?.trim();
   return {
     ...(domain ? { domain } : {}),
     path: "/",
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production" || supabaseSecure === true,
+    // Never `Secure` on an HTTP deployment: the browser would drop the session.
+    secure: authCookiesSecure(),
   };
 }

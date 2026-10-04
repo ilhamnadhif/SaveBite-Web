@@ -151,13 +151,34 @@ export function configStatus(): {
 }
 
 /**
+ * Whether the server may mark auth cookies `Secure`.
+ *
+ * Browsers drop a `Secure` cookie that arrives over plain HTTP, so this follows
+ * the scheme of the public origin (the configured OAuth callback URL) rather
+ * than `NODE_ENV`. Forcing it on in production made an HTTP deployment such as
+ * `http://<ip>:3002` lose the session right after the OAuth callback, so
+ * every Google login landed back on the signed-out screens. Behind HTTPS (the
+ * callback URL is `https://…`) the cookies stay `Secure`.
+ */
+export function authCookiesSecure(): boolean {
+  const callback = read(process.env.NEXT_PUBLIC_AUTH_CALLBACK_URL);
+  if (callback) {
+    try {
+      return new URL(callback).protocol === "https:";
+    } catch {
+      // An invalid value is reported by /api/ready; use the fallback below.
+    }
+  }
+  return process.env.NODE_ENV === "production";
+}
+
+/**
  * Cookie attributes shared by the browser and server Supabase clients.
  *
  * `SameSite=Lax` (not `Strict`) is required: the OAuth callback returns from
  * google.com as a top-level GET navigation, and `Strict` would drop the
- * just-set session cookie. `Secure` is forced on in production, regardless of
- * protocol, because a production deployment behind a TLS-terminating proxy is
- * the expected setup.
+ * just-set session cookie. `Secure` follows the actual scheme: the page's own
+ * protocol in the browser, the public origin on the server.
  */
 export function authCookieOptions(): {
   domain?: string;
@@ -170,6 +191,6 @@ export function authCookieOptions(): {
     ...(domain ? { domain } : {}),
     path: "/",
     sameSite: "lax",
-    secure: isBrowser ? window.location.protocol === "https:" : process.env.NODE_ENV === "production",
+    secure: isBrowser ? window.location.protocol === "https:" : authCookiesSecure(),
   };
 }
