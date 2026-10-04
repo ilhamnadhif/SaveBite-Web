@@ -1,14 +1,17 @@
 /**
  * TypeScript port of the Flutter web bridge (`web/snap_bridge.js`).
  *
- * Loads Midtrans Snap.js once per client key and environment, then opens the
- * official in-page popup. Provider payloads are deliberately discarded: the
- * caller only receives a hint and asks the authenticated backend for the
- * authoritative payment state.
+ * Loads Midtrans Snap.js once per client key and environment, then renders
+ * the official checkout inside the page (embed mode) or as Snap's popup.
+ * Provider payloads are deliberately discarded: the caller only receives a
+ * hint and asks the authenticated backend for the authoritative payment state.
  */
 
-/** What the caller is told: a status hint, or that the popup was closed. */
+/** What the caller is told: a status hint, or that the checkout was closed. */
 export type SnapResultKind = "status" | "closed";
+
+/** Where Snap shows the checkout: inside the page, or as its full-screen popup. */
+export type SnapPresentation = "embedded" | "popup";
 
 type SnapCallbacks = {
   onSuccess: () => void;
@@ -17,9 +20,16 @@ type SnapCallbacks = {
   onClose: () => void;
 };
 
+type SnapEmbedOptions = SnapCallbacks & {
+  embedId: string;
+  hideCloseButton: boolean;
+  language: string;
+};
+
 /** The subset of Midtrans' `window.snap` the bridge uses. */
 type Snap = {
   pay: (token: string, options: SnapCallbacks) => void;
+  embed?: (token: string, options: SnapEmbedOptions) => void;
   hide?: () => void;
 };
 
@@ -35,6 +45,7 @@ const SCRIPTS = Object.freeze({
 });
 const CLIENT_KEY_PATTERN = /^Mid-client-[A-Za-z0-9_-]{8,128}$/;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,512}$/;
+const EMBED_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,127}$/;
 const SNAP_LOAD_TIMEOUT_MS = 20_000;
 
 let scriptPromise: Promise<Snap> | null = null;
@@ -141,16 +152,18 @@ function loadSnap(clientKey: string, environment: string): Promise<Snap> {
 }
 
 /**
- * Opens the Snap popup for `token`. `onResult` fires at most once per
- * session, and never after the session was hidden or replaced.
+ * Starts a session for `token` and lets `open` show it. `onResult` fires at
+ * most once per session, and never after the session was hidden or replaced.
+ * Resolves null when that happened before Snap.js finished loading.
  */
-export async function pay(
+async function start(
   token: string,
   clientKey: string,
   environment: string,
   sessionId: string,
   onResult: (kind: SnapResultKind) => void,
-): Promise<void> {
+  open: (snap: Snap, callbacks: SnapCallbacks) => SnapPresentation,
+): Promise<SnapPresentation | null> {
   if (!TOKEN_PATTERN.test(token) || typeof onResult !== "function") {
     throw new Error("Invalid Snap checkout session");
   }
@@ -158,7 +171,7 @@ export async function pay(
   const current: ActiveSession = { sessionId, onResult, notified: false };
   active = current;
   const snap = await loadSnap(clientKey, environment);
-  if (active !== current) return;
+  if (active !== current) return null;
 
   const notify = (kind: SnapResultKind) => {
     if (active !== current || current.notified) return;
@@ -167,7 +180,7 @@ export async function pay(
     // a hint and asks the authenticated backend for the authoritative state.
     current.onResult(kind);
   };
-  snap.pay(token, {
+  return open(snap, {
     onSuccess: () => notify("status"),
     onPending: () => notify("status"),
     onError: () => notify("status"),
@@ -175,10 +188,56 @@ export async function pay(
   });
 }
 
-/** Closes the popup if `sessionId` is still the active session. */
+/** Opens the Snap popup for `token`. */
+export async function pay(
+  token: string,
+  clientKey: string,
+  environment: string,
+  sessionId: string,
+  onResult: (kind: SnapResultKind) => void,
+): Promise<void> {
+  await start(token, clientKey, environment, sessionId, onResult, (snap, callbacks) => {
+    snap.pay(token, callbacks);
+    return "popup";
+  });
+}
+
+/**
+ * Renders the Snap checkout for `token` inside the element `embedId`, the web
+ * counterpart of the WebView inside the payment card on mobile. Snap removes
+ * its iframe again after a result. Falls back to the popup when the loaded
+ * Snap.js has no embed mode.
+ */
+export async function embed(
+  token: string,
+  clientKey: string,
+  environment: string,
+  sessionId: string,
+  embedId: string,
+  onResult: (kind: SnapResultKind) => void,
+): Promise<SnapPresentation | null> {
+  if (!EMBED_ID_PATTERN.test(embedId)) {
+    throw new Error("Invalid Snap checkout container");
+  }
+  return start(token, clientKey, environment, sessionId, onResult, (snap, callbacks) => {
+    if (typeof snap.embed !== "function") {
+      snap.pay(token, callbacks);
+      return "popup";
+    }
+    if (document.getElementById(embedId) === null) {
+      throw new Error("Snap checkout container is missing");
+    }
+    // No close button: the checkout belongs to the card, and the screen has
+    // its own back and reload controls. Snap's copy follows the app language.
+    snap.embed(token, { ...callbacks, embedId, hideCloseButton: true, language: "id" });
+    return "embedded";
+  });
+}
+
+/** Closes the checkout if `sessionId` is still the active session. */
 export function hide(sessionId: string) {
   if (active && active.sessionId === sessionId) hideActive();
 }
 
 /** `window.SaveBiteSnap` of the Flutter web build. */
-export const SaveBiteSnap = Object.freeze({ pay, hide });
+export const SaveBiteSnap = Object.freeze({ pay, embed, hide });
