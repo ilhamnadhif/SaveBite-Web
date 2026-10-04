@@ -8,7 +8,6 @@ add_circle_outline_rounded
 add_photo_alternate_outlined
 add_rounded
 alternate_email
-apple
 arrow_back
 arrow_back_ios_new
 arrow_drop_down

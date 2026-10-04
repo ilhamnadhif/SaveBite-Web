@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { AppNav } from "../../lib/appNav";
 import { appState } from "../../lib/appState";
-import { AuthService, isApplePlatform } from "../../lib/auth";
+import { AuthService } from "../../lib/auth";
 import { e2eMode } from "../../lib/env";
 import { navigator } from "../../lib/navigator";
 import type { LegalDocument } from "../../lib/routes";
@@ -17,13 +17,30 @@ import { C, display, ui } from "../../ui/theme";
 type Credentials = { email: string; password: string };
 
 /**
- * OAuth login. The role is persisted before the provider page opens so the
- * redirect back never loses where the user was going.
+ * Messages for the error codes `/auth/callback` adds to the URL. Only these
+ * fixed texts can be shown, so a crafted link cannot put its own copy here.
  */
-export function LoginScreen({ merchant, next }: { merchant: boolean; next?: string }) {
+const CALLBACK_ERRORS: Record<string, string> = {
+  exchange_failed: "Sesi tidak dapat dibuat. Silakan coba masuk kembali.",
+  unavailable: "Layanan sedang tidak tersedia. Silakan coba lagi.",
+};
+
+/**
+ * OAuth login with Google. The role is persisted before the provider page
+ * opens so the redirect back never loses where the user was going.
+ */
+export function LoginScreen({
+  merchant,
+  next,
+  errorCode,
+}: {
+  merchant: boolean;
+  next?: string;
+  /** Error code from a failed `/auth/callback`. */
+  errorCode?: string | null;
+}) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showApple] = useState(() => isApplePlatform());
+  const [error, setError] = useState<string | null>(() => (errorCode ? (CALLBACK_ERRORS[errorCode] ?? null) : null));
   const target = next || (merchant ? "/merchant" : "/");
 
   const login = async (provider: () => Promise<boolean>) => {
@@ -94,16 +111,6 @@ export function LoginScreen({ merchant, next }: { merchant: boolean; next?: stri
         busy={busy}
         onPressed={() => void login(() => AuthService.signInWithGoogle(target))}
       />
-      {showApple ? (
-        <div style={{ marginTop: 10 }}>
-          <ProviderButton
-            label="Lanjutkan dengan Apple"
-            icon={<Icon name="apple" size={25} color={C.ink} />}
-            busy={busy}
-            onPressed={() => void login(() => AuthService.signInWithApple(target))}
-          />
-        </div>
-      ) : null}
       {e2eMode() ? (
         <div style={{ marginTop: 10 }}>
           <ProviderButton
@@ -172,24 +179,27 @@ function LegalLink({ label, document }: { label: string; document: LegalDocument
   );
 }
 
-/** The four-colour Google "G" ring used by the mobile login button. */
+/** The official multicolour Google "G" mark. */
 function GoogleMark() {
   return (
-    <span
-      aria-hidden
-      style={{
-        width: 24,
-        height: 24,
-        borderRadius: "50%",
-        background: "conic-gradient(from 90deg, #EA4335, #FBBC05, #34A853, #4285F4, #EA4335)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flex: "none",
-      }}
-    >
-      <span style={{ width: 10, height: 10, borderRadius: "50%", background: C.white }} />
-    </span>
+    <svg width={24} height={24} viewBox="0 0 48 48" aria-hidden focusable="false" style={{ flex: "none", display: "block" }}>
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
   );
 }
 
