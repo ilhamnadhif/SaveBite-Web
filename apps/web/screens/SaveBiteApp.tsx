@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * App root: the port of `main.dart`'s `SaveBiteApp`. Shows the branded splash
- * (at least 900 ms, like the mobile app), selects the backend, restores local
- * state, then routes from the auth state — signed in to the right workspace,
- * signed out to onboarding/fork. Auth events after startup go through one
- * serial queue so `signedIn`/`signedOut` are handled exactly once.
+ * App root: the port of `main.dart`'s `SaveBiteApp`, without the splash.
+ * Selects the backend, restores local state, then routes from the auth state
+ * as soon as it is known — signed in to the right workspace, signed out to
+ * onboarding/fork. Auth events after startup go through one serial queue so
+ * `signedIn`/`signedOut` are handled exactly once.
  */
 import { useEffect } from "react";
 import { appState } from "../lib/appState";
@@ -17,10 +17,10 @@ import { navigator } from "../lib/navigator";
 import { matchRoute } from "../lib/routes";
 import { NavigatorView } from "../ui/NavigatorView";
 import { OverlayHost } from "../ui/overlays";
+import { C } from "../ui/theme";
 import { NotFoundScreen } from "./shared/NotFoundScreen";
-import { SplashScreen, StartupConfigurationErrorScreen } from "./onboarding/SplashScreen";
+import { StartupConfigurationErrorScreen } from "./onboarding/StartupConfigurationErrorScreen";
 
-const MINIMUM_SPLASH_MS = 900;
 const PAYMENT_RETURN_MARKER = "savebite_payment_return";
 
 let started = false;
@@ -36,12 +36,14 @@ async function startApp() {
 
   const initialUrl = currentUrl();
   navigator.attach((url) => restoreStack(url));
-  await navigator.reset([{ url: initialUrl, build: () => <SplashScreen /> }], "none");
-  const minimumSplash = new Promise((resolve) => setTimeout(resolve, MINIMUM_SPLASH_MS));
+  // No splash: a plain background only while startup reads the session.
+  await navigator.reset(
+    [{ url: initialUrl, build: () => <div aria-busy="true" style={{ flex: 1, background: C.cream }} /> }],
+    "none",
+  );
 
   const problem = configurationError();
   if (problem) {
-    await minimumSplash;
     await navigator.root({ url: initialUrl, build: () => <StartupConfigurationErrorScreen message={problem} /> });
     return;
   }
@@ -49,7 +51,6 @@ async function startApp() {
   try {
     await selectBackend({ demo: DEMO_MODE });
   } catch {
-    await minimumSplash;
     await navigator.root({
       url: initialUrl,
       build: () => (
@@ -62,7 +63,6 @@ async function startApp() {
 
   const pathname = window.location.pathname;
   if (pathname !== "/" && !matchRoute(pathname)) {
-    await minimumSplash;
     await navigator.root({ url: initialUrl, build: () => <NotFoundScreen /> });
     return;
   }
@@ -77,7 +77,6 @@ async function startApp() {
   let startupRouting: Promise<void> | null = null;
 
   const performStartupRoute = async () => {
-    await minimumSplash;
     const session = AuthService.isConfigured ? await AuthService.currentSession() : null;
     if (session) {
       AppNav.setPendingDeepLink(routedUrl);
