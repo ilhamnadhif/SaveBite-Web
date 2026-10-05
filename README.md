@@ -6,7 +6,7 @@ Satu aplikasi melayani dua peran: **konsumen** menemukan dan memesan Surprise Ba
 
 ## Alur (sama dengan mobile)
 
-- **Startup**: splash bermerek (min. 900 ms) → jika ada sesi, muat profil/toko lalu buka ruang kerja terakhir (`last_mode`); jika tidak, onboarding (sekali per perangkat) → pilih peran → login Google/Apple.
+- **Startup**: tanpa splash — jika ada sesi, muat profil/toko lalu buka ruang kerja terakhir (`last_mode`); jika tidak, onboarding (sekali per perangkat) → pilih peran → login Google.
 - **Konsumen**: izin lokasi → Beranda (bag terdekat, kategori, filter, pilih lokasi), Peta (OpenStreetMap), Pesanan, Favorit, Profil; detail bag, profil toko, pencarian, checkout QRIS (Midtrans Snap), status pembayaran tersinkron server, voucher pickup dengan QR berotasi 60 detik, ulasan, notifikasi realtime, edit profil, bantuan, dokumen legal, ganti peran, hapus akun.
 - **Merchant**: setup toko (titik peta dipilih manual di web, seperti build web Flutter), Dashboard, kelola bag (buat/edit/duplikat/aktif-nonaktif, jadwal, stok, foto), pesanan masuk realtime, tandai siap, batalkan, detail pesanan, **scan QR pickup dengan kamera**, ulasan, saldo/transaksi, rekening bank, penarikan dana.
 
