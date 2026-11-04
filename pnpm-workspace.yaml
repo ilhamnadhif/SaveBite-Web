@@ -27,7 +27,6 @@ overrides:
   next: ">=15.5.28 <16"
   sharp: ">=0.35.5"
   source-map-js: ">=1.2.2"
-  vite: ">=7.3.7 <8"
 
 # Advisories accepted for `pnpm audit` because no fixed release exists yet.
 #
