@@ -19,8 +19,15 @@ allowBuilds:
 # override rather than a version bump. postcss 8.5.x is API compatible with
 # 8.4.x, so this is a drop-in; drop the override once next ships a patched
 # postcss (tracked by the `pnpm audit --audit-level=high` CI step).
+#
+# The others below clear high and critical advisories in transitive packages.
+# `next` also pins the peer that packages/web-shared resolves on its own.
 overrides:
   postcss: ">=8.5.23"
+  next: ">=15.5.28 <16"
+  sharp: ">=0.35.5"
+  source-map-js: ">=1.2.2"
+  vite: ">=7.3.7 <8"
 
 # Advisories accepted for `pnpm audit` because no fixed release exists yet.
 #
