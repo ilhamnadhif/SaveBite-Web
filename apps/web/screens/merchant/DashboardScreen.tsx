@@ -13,6 +13,7 @@ import {
   ColoredHeader,
   EmptyState,
   Gap,
+  InfoBanner,
   LinearProgress,
   ProgressBar,
   RefreshScroll,
@@ -67,6 +68,25 @@ export function DashboardScreen() {
         color={C.terracotta}
         style={{ padding: "18px 20px 22px", background: C.cream }}
       >
+        {state.storeVerification === "verified" ? null : (
+          <>
+            <InfoBanner
+              icon={state.storeVerification === "pending" ? "hourglass_empty_rounded" : "warning_amber_rounded"}
+              background={state.storeVerification === "pending" ? C.terracottaSoftBg : C.dangerSoftBg}
+              iconColor={state.storeVerification === "pending" ? C.brown : C.danger}
+            >
+              <div style={ui(13.5, { weight: 700, color: C.ink })}>
+                {state.storeVerification === "pending" ? "Menunggu verifikasi Admin" : "Verifikasi toko ditolak"}
+              </div>
+              <div style={{ ...ui(12.5, { color: C.body, height: 1.4 }), marginTop: 2 }}>
+                {state.storeVerification === "pending"
+                  ? "Bag bisa disiapkan, tetapi baru tampil ke Pembeli setelah toko disetujui."
+                  : `${state.storeVerificationNote ?? "Periksa kembali data toko."} Perbarui data toko untuk mengajukan ulang.`}
+              </div>
+            </InfoBanner>
+            <Gap h={14} />
+          </>
+        )}
         {loadError !== null ? (
           <>
             <ErrorCard message={loadError} />

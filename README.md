@@ -2,13 +2,15 @@
 
 SaveBite untuk browser: aplikasi Flutter SaveBite (`../SaveBite`) yang di-port satu-banding-satu ke Next.js. Alur, layar, copy Bahasa Indonesia, warna, tipografi, dan aturan bisnisnya sama dengan aplikasi mobile — pengguna cukup membuka web, tidak perlu memasang aplikasi.
 
-Satu aplikasi melayani dua peran: **konsumen** menemukan dan memesan Surprise Bag di sekitar mereka, **merchant** mengelola toko, bag, pesanan, pickup, dan saldo. Backend-nya Supabase yang sama dengan aplikasi mobile (Auth, Postgres + RLS, Realtime, Storage, Edge Functions Midtrans).
+Satu aplikasi melayani tiga peran: **konsumen** menemukan dan memesan Surprise Bag di sekitar mereka, **merchant** mengelola toko, bag, pesanan, pickup, dan saldo, dan **admin** memverifikasi penjual, mengelola pengguna, menangani pengaduan, dan melihat laporan transaksi. Backend-nya Supabase yang sama dengan aplikasi mobile (Auth, Postgres + RLS, Realtime, Storage, Edge Functions Midtrans).
 
 ## Alur (sama dengan mobile)
 
 - **Startup**: tanpa splash — jika ada sesi, muat profil/toko lalu buka ruang kerja terakhir (`last_mode`); jika tidak, onboarding (sekali per perangkat) → pilih peran → login Google.
 - **Konsumen**: izin lokasi → Beranda (bag terdekat, kategori, filter, pilih lokasi), Peta (OpenStreetMap), Pesanan, Favorit, Profil; detail bag, profil toko, pencarian, checkout QRIS (Midtrans Snap), status pembayaran tersinkron server, voucher pickup dengan QR berotasi 60 detik, ulasan, notifikasi realtime, edit profil, bantuan, dokumen legal, ganti peran, hapus akun.
 - **Merchant**: setup toko (titik peta dipilih manual di web, seperti build web Flutter), Dashboard, kelola bag (buat/edit/duplikat/aktif-nonaktif, jadwal, stok, foto), pesanan masuk realtime, tandai siap, batalkan, detail pesanan, **scan QR pickup dengan kamera**, ulasan, saldo/transaksi, rekening bank, penarikan dana.
+
+- **Admin** (`/admin`, tidak ditampilkan di halaman pilih peran): Dashboard, Verifikasi Penjual, Kelola Pengguna, Pengaduan, Laporan Transaksi. Peran disimpan di tabel `admin_users` dan ditambahkan operator lewat SQL; setiap RPC admin memeriksa peran di server. Toko baru berstatus `pending` dan baru tampil ke konsumen setelah disetujui.
 
 Navigasi meniru `Navigator` Flutter: layar di-*push* ke tumpukan, layar di bawahnya tetap hidup (posisi scroll dan isian form tidak hilang), tombol kembali browser = tombol kembali Android, dan navigasi "root" (mis. logout, checkout selesai) membersihkan riwayat agar tidak bisa kembali ke alur yang sudah ditutup. Setiap layar tetap punya URL sehingga refresh atau tautan yang dibagikan membuka layar yang sama.
 
@@ -112,7 +114,7 @@ Hanya nilai publik yang boleh ada di sini. Jangan masukkan service-role key, Mid
 
 ## Database
 
-Rantai migrasi lengkap 0001–0024 dan Edge Functions berada di repo Flutter (`../SaveBite/supabase`), yang ter-link ke project Supabase; terapkan dengan `supabase db push` dari sana. Repo ini memuat 0022 (kode pickup manual, fitur web lama yang kini tidak dipakai UI — dipertahankan karena migrasi tidak boleh dihapus) dan 0023 (pembatasan MIME bucket gambar + Realtime `surprise_bags`); salinan identiknya ada di repo Flutter, dan `pnpm check:migrations` mengauditnya di sini. 0024 menambahkan checkout Snap ter-hosting dengan semua metode (`MIDTRANS`).
+Rantai migrasi lengkap 0001–0025 dan Edge Functions berada di repo Flutter (`../SaveBite/supabase`), yang ter-link ke project Supabase; terapkan dengan `supabase db push` dari sana. Repo ini memuat 0022 (kode pickup manual, fitur web lama yang kini tidak dipakai UI — dipertahankan karena migrasi tidak boleh dihapus) 0023 (pembatasan MIME bucket gambar + Realtime `surprise_bags`), dan 0025 (Admin dan pengaduan); salinan identiknya ada di repo Flutter, dan `pnpm check:migrations` mengauditnya di sini. 0024 menambahkan checkout Snap ter-hosting dengan semua metode (`MIDTRANS`).
 
 ## Batasan yang diketahui
 

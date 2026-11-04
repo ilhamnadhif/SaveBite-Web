@@ -459,6 +459,8 @@ export type Profile = {
   readonly avatarUrl: string | null;
   /** "consumer" | "merchant". */
   readonly lastMode: string;
+  readonly suspendedAt: Date | null;
+  readonly suspendedReason: string | null;
 };
 
 /** The merchant's store, from `merchants` (owned by the user). */
@@ -473,6 +475,8 @@ export type StoreProfile = {
   readonly logoUrl: string | null;
   readonly latitude: number | null;
   readonly longitude: number | null;
+  readonly verificationStatus: VerificationStatus;
+  readonly verificationNote: string | null;
 };
 
 /** Merchant dashboard summary. */
@@ -501,4 +505,134 @@ export const FALLBACK_IMAGE = "/images/food1.jpg";
 export function assetUrl(path: string): string {
   if (path.startsWith("assets/images/")) return `/images/${path.slice("assets/images/".length)}`;
   return path;
+}
+
+// ── Admin dan pengaduan ─────────────────────────────────────────────────────
+
+export type VerificationStatus = "pending" | "verified" | "rejected";
+export type ComplaintStatus = "open" | "in_review" | "resolved" | "rejected";
+export type ComplaintCategory = "product" | "quantity" | "pickup" | "payment" | "other";
+
+export const VERIFICATION_LABELS: Readonly<Record<VerificationStatus, string>> = {
+  pending: "Menunggu",
+  verified: "Terverifikasi",
+  rejected: "Ditolak",
+};
+
+export const COMPLAINT_STATUS_LABELS: Readonly<Record<ComplaintStatus, string>> = {
+  open: "Menunggu",
+  in_review: "Ditinjau",
+  resolved: "Selesai",
+  rejected: "Ditolak",
+};
+
+export const COMPLAINT_CATEGORY_LABELS: Readonly<Record<ComplaintCategory, string>> = {
+  product: "Kualitas makanan",
+  quantity: "Jumlah tidak sesuai",
+  pickup: "Masalah pengambilan",
+  payment: "Masalah pembayaran",
+  other: "Lainnya",
+};
+
+/** Same limits as `submit_complaint` and the admin RPCs. */
+export const MIN_COMPLAINT_LENGTH = 10;
+export const MAX_COMPLAINT_LENGTH = 1000;
+export const MIN_ADMIN_NOTE_LENGTH = 5;
+
+export type Complaint = {
+  readonly id: string;
+  readonly orderId: string;
+  readonly category: ComplaintCategory;
+  readonly description: string;
+  readonly status: ComplaintStatus;
+  readonly adminNote: string | null;
+  readonly createdAt: Date | null;
+};
+
+export type AdminComplaint = Complaint & {
+  readonly orderReference: string;
+  readonly bagTitle: string;
+  readonly totalAmount: number;
+  readonly consumerName: string;
+  readonly consumerEmail: string;
+  readonly storeName: string;
+};
+
+export type AdminMerchant = {
+  readonly id: string;
+  readonly storeName: string;
+  readonly category: string;
+  readonly address: string;
+  readonly verificationStatus: VerificationStatus;
+  readonly verificationNote: string | null;
+  readonly ownerName: string;
+  readonly ownerEmail: string;
+  readonly bagCount: number;
+  readonly createdAt: Date | null;
+};
+
+export type AdminUser = {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly createdAt: Date | null;
+  readonly suspendedAt: Date | null;
+  readonly suspendedReason: string | null;
+  readonly isAdmin: boolean;
+  readonly storeName: string | null;
+  readonly orderCount: number;
+};
+
+export type AdminStats = {
+  readonly pendingMerchants: number;
+  readonly verifiedMerchants: number;
+  readonly openComplaints: number;
+  readonly totalUsers: number;
+  readonly suspendedUsers: number;
+  readonly ordersToday: number;
+  readonly grossToday: number;
+  readonly gross30d: number;
+};
+
+export const EMPTY_ADMIN_STATS: AdminStats = Object.freeze({
+  pendingMerchants: 0,
+  verifiedMerchants: 0,
+  openComplaints: 0,
+  totalUsers: 0,
+  suspendedUsers: 0,
+  ordersToday: 0,
+  grossToday: 0,
+  gross30d: 0,
+});
+
+export type ReportDay = {
+  /** `YYYY-MM-DD`, Asia/Jakarta. */
+  readonly day: string;
+  readonly orders: number;
+  readonly grossAmount: number;
+};
+
+export type ReportMerchant = {
+  readonly id: string;
+  readonly storeName: string;
+  readonly orders: number;
+  readonly grossAmount: number;
+};
+
+export type TransactionReport = {
+  readonly verifiedOrders: number;
+  readonly settledOrders: number;
+  readonly unsettledOrders: number;
+  readonly completedOrders: number;
+  readonly grossAmount: number;
+  readonly merchantNetAmount: number;
+  readonly platformRevenue: number;
+  readonly daily: readonly ReportDay[];
+  readonly topMerchants: readonly ReportMerchant[];
+};
+
+/** A complaint needs a real payment, and one order takes one complaint. */
+export function canComplain(order: OrderRecord, complaint: Complaint | null | undefined): boolean {
+  if (order.id === "" || complaint) return false;
+  return order.paymentState === "paid" || order.paymentState === "refunded" || order.paymentState === "disputed";
 }

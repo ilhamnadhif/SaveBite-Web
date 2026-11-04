@@ -18,7 +18,7 @@ import {
 } from "./notificationRoute";
 import { matchRoute, paths, routeSpace, type LegalDocument, type RouteMatch } from "./routes";
 import { SHEET_BARRIER } from "../ui/theme";
-import { showSheet } from "../ui/overlays";
+import { showSheet, snack } from "../ui/overlays";
 
 import { OnboardingScreen } from "../screens/onboarding/OnboardingScreen";
 import { ForkScreen } from "../screens/onboarding/ForkScreen";
@@ -32,6 +32,7 @@ import { ProcessingScreen } from "../screens/consumer/ProcessingScreen";
 import { PaymentFailedScreen } from "../screens/consumer/PaymentFailedScreen";
 import { VoucherScreen } from "../screens/consumer/VoucherScreen";
 import { RatingScreen } from "../screens/consumer/RatingScreen";
+import { ComplaintScreen } from "../screens/consumer/ComplaintScreen";
 import { StoreProfileScreen } from "../screens/consumer/StoreProfileScreen";
 import { NotificationsScreen } from "../screens/consumer/NotificationsScreen";
 import { EditProfileScreen } from "../screens/consumer/EditProfileScreen";
@@ -47,10 +48,13 @@ import { WithdrawSheet } from "../screens/merchant/WithdrawSheet";
 import { WithdrawSuccessScreen } from "../screens/merchant/WithdrawSuccessScreen";
 import { EditStoreScreen } from "../screens/merchant/EditStoreScreen";
 import { MerchantReviewsScreen } from "../screens/merchant/MerchantReviewsScreen";
+import { AdminShell } from "../screens/admin/AdminShell";
 import { HelpScreen } from "../screens/shared/HelpScreen";
+import { SuspendedScreen } from "../screens/shared/SuspendedScreen";
 import { LegalScreen } from "../screens/shared/LegalScreen";
 import {
   CheckoutRoute,
+  ComplaintRoute,
   DetailRoute,
   EditBagRoute,
   OrderDetailRoute,
@@ -74,6 +78,14 @@ export const specs = {
   login: (merchant: boolean, next?: string, errorCode?: string | null): RouteSpec => ({
     url: paths.login(merchant, next),
     build: () => <LoginScreen merchant={merchant} next={next} errorCode={errorCode} />,
+  }),
+  adminShell: (initialIndex = 0): RouteSpec => ({
+    url: paths.adminTab(initialIndex),
+    build: () => <AdminShell initialIndex={initialIndex} />,
+  }),
+  suspended: (): RouteSpec => ({
+    url: typeof window === "undefined" ? "/" : window.location.pathname,
+    build: () => <SuspendedScreen />,
   }),
   startupError: (message: string): RouteSpec => ({
     url: typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`,
@@ -175,6 +187,7 @@ export const specs = {
     build: () => <StoreProfileScreen merchant={merchant} />,
   }),
   rating: (order: OrderRecord): RouteSpec => ({ url: paths.rating(order.id), build: () => <RatingScreen order={order} /> }),
+  complaint: (order: OrderRecord): RouteSpec => ({ url: paths.complaint(order.id), build: () => <ComplaintScreen order={order} /> }),
   notifications: (): RouteSpec => ({ url: paths.notifications(), build: () => <NotificationsScreen /> }),
   editProfile: (): RouteSpec => ({ url: paths.editProfile(), build: () => <EditProfileScreen /> }),
   help: (): RouteSpec => ({ url: paths.help(), build: () => <HelpScreen /> }),
@@ -226,6 +239,7 @@ export function restoreStack(url: string): RouteSpec[] | null {
   if (!match) return null;
   const query = parsed.searchParams;
   const space = routeSpace(match);
+  if (space === "admin" && !appState.isAdmin) return [specs.consumerShell()];
   if (space === "merchant") appState.switchToMerchant();
   else if (space === "consumer") appState.switchToConsumer();
   return stackFor(match, query);
@@ -252,6 +266,8 @@ function stackFor(match: RouteMatch, query: URLSearchParams): RouteSpec[] {
           referencedOrderId: match.tab === 2 ? query.get("order") : null,
         }),
       ];
+    case "adminTab":
+      return [specs.adminShell(match.tab)];
     case "onboarding":
       return [specs.onboarding()];
     case "fork":
@@ -311,6 +327,8 @@ function stackFor(match: RouteMatch, query: URLSearchParams): RouteSpec[] {
       return [consumer(2), { url: paths.voucher(match.orderId), build: () => <VoucherRoute orderId={match.orderId} /> }];
     case "rating":
       return [consumer(2), { url: paths.rating(match.orderId), build: () => <RatingRoute orderId={match.orderId} /> }];
+    case "complaint":
+      return [consumer(2), { url: paths.complaint(match.orderId), build: () => <ComplaintRoute orderId={match.orderId} /> }];
     case "storeProfile":
       return [
         consumer(0),
@@ -394,6 +412,10 @@ function routeAfterLoginNow() {
   const deepLink = pendingDeepLink;
   pendingDeepLink = null;
   const intent = appState.consumePendingMerchantIntent();
+  if (appState.accountSuspended) {
+    void navigator.root(specs.suspended());
+    return;
+  }
   if (deepLink) {
     let parsed: URL | null = null;
     try {
@@ -402,7 +424,13 @@ function routeAfterLoginNow() {
       parsed = null;
     }
     const match = parsed ? matchRoute(parsed.pathname) : null;
-    if (parsed && match && !ENTRY_PATHS.has(parsed.pathname) && routeSpace(match) !== "public") {
+    if (parsed && match && routeSpace(match) === "admin") {
+      if (appState.isAdmin) {
+        void navigator.reset(stackFor(match, parsed.searchParams));
+        return;
+      }
+      snack("Halaman ini khusus Admin.", "error_outline");
+    } else if (parsed && match && !ENTRY_PATHS.has(parsed.pathname) && routeSpace(match) !== "public") {
       const space = routeSpace(match);
       const wantMerchant = space === "merchant" || (space === "shared" && (intent ?? appState.lastMode === "merchant"));
       if (wantMerchant) {
@@ -453,11 +481,12 @@ export const AppNav = {
   },
 
   /** Local login exists only in the explicit demo build. */
-  async completeLogin({ merchant }: { merchant: boolean }) {
+  async completeLogin({ merchant, next }: { merchant: boolean; next?: string }) {
     if (!AuthService.isConfigured && !AuthService.isDemoMode) {
       throw new BackendException("missing_client_configuration", "Konfigurasi Supabase belum tersedia pada build ini.");
     }
     await appState.setPendingMerchantIntent(merchant);
+    if (next) pendingDeepLink = next;
     await AppNav.handleSignedIn();
   },
 
@@ -654,6 +683,9 @@ export const AppNav = {
 
   toStoreProfile: (merchant: Merchant) => void navigator.push(specs.storeProfile(merchant)),
   toRating: (order: OrderRecord) => navigator.push<boolean>(specs.rating(order)),
+  toComplaint: (order: OrderRecord) => navigator.push<boolean>(specs.complaint(order)),
+  toAdmin: () => void navigator.root(specs.adminShell()),
+  leaveAdmin: () => void navigator.root(specs.consumerShell()),
   toNotifications: () => void navigator.push(specs.notifications()),
   toEditProfile: () => navigator.push<boolean>(specs.editProfile()),
   toHelp: () => void navigator.push(specs.help()),

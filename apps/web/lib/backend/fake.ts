@@ -16,10 +16,17 @@ import {
   incomingOrder,
   normalizeBagContents,
   orderRecord,
+  type AdminComplaint,
+  type AdminMerchant,
+  type AdminStats,
+  type AdminUser,
   type AppNotification,
   type Bag,
   type BagFilter,
   type BankAccount,
+  type Complaint,
+  type ComplaintCategory,
+  type ComplaintStatus,
   type FavoriteStore,
   type IncomingOrder,
   type Merchant,
@@ -30,6 +37,7 @@ import {
   type PayoutRequest,
   type Profile,
   type StoreProfile,
+  type TransactionReport,
   type TxRecord,
 } from "../models";
 import { SampleData } from "../sampleData";
@@ -154,6 +162,8 @@ export class FakeBackend implements Backend {
     phone: "0812-3456-7890",
     avatarUrl: null,
     lastMode: "consumer",
+    suspendedAt: null,
+    suspendedReason: null,
   };
   // Starts null → a new merchant goes through Setup Toko first (PRD F-G4).
   private store: StoreProfile | null = null;
@@ -186,6 +196,9 @@ export class FakeBackend implements Backend {
     },
   ];
   private readonly notifs: AppNotification[] = [...SampleData.notifications];
+  private readonly complaintsList: AdminComplaint[] = [...SampleData.adminComplaints];
+  private readonly merchantsList: AdminMerchant[] = [...SampleData.adminMerchants];
+  private readonly usersList: AdminUser[] = [...SampleData.adminUsers];
   private readonly tx: TxRecord[] = [...SampleData.transactions];
   private balanceValue = SampleData.merchantBalance;
   private soldToday = 8;
@@ -221,6 +234,8 @@ export class FakeBackend implements Backend {
       phone: filled(fields.phone) ?? this.profile.phone,
       avatarUrl: fields.avatarUrl ?? this.profile.avatarUrl,
       lastMode: this.profile.lastMode,
+      suspendedAt: this.profile.suspendedAt,
+      suspendedReason: this.profile.suspendedReason,
     };
   }
 
@@ -261,6 +276,7 @@ export class FakeBackend implements Backend {
   private locallyPublishedBags(): Bag[] {
     const merchant = this.localMerchant();
     if (merchant === null || this.locallyPublishedBagIds.size === 0) return [];
+    if (this.store?.verificationStatus !== "verified") return [];
     return this.bags
       .filter((bag) => this.locallyPublishedBagIds.has(bag.id) && bag.active && bag.quantityLeft > 0)
       .map((bag) => ({
@@ -570,7 +586,125 @@ export class FakeBackend implements Backend {
       logoUrl: input.logoUrl ?? this.store?.logoUrl ?? null,
       latitude: input.latitude ?? this.store?.latitude ?? null,
       longitude: input.longitude ?? this.store?.longitude ?? null,
+      verificationStatus: this.store?.verificationStatus === "verified" ? "verified" : "pending",
+      verificationNote: null,
     };
+  }
+
+  // Pengaduan
+  async myComplaints(): Promise<Complaint[]> {
+    return this.complaintsList.filter((complaint) => complaint.consumerName === this.profile.name);
+  }
+
+  async submitComplaint(order: OrderRecord, category: ComplaintCategory, description: string): Promise<Complaint> {
+    const text = description.trim();
+    if (text.length < 10) throw new BackendException("invalid_complaint", "Jelaskan masalahnya minimal 10 karakter.");
+    if (this.complaintsList.some((complaint) => complaint.orderId === order.id)) {
+      throw new BackendException("complaint_exists", "Pengaduan untuk pesanan ini sudah pernah dikirim.");
+    }
+    const complaint: AdminComplaint = {
+      id: this.nextId("complaint-"),
+      orderId: order.id,
+      category,
+      description: text,
+      status: "open",
+      adminNote: null,
+      createdAt: new Date(),
+      orderReference: order.code,
+      bagTitle: order.bag.title,
+      totalAmount: order.amount,
+      consumerName: this.profile.name,
+      consumerEmail: this.profile.email,
+      storeName: order.bag.merchant.name,
+    };
+    this.complaintsList.unshift(complaint);
+    return complaint;
+  }
+
+  // Admin
+  async isAdmin(): Promise<boolean> {
+    return true;
+  }
+
+  async adminStats(): Promise<AdminStats> {
+    const merchants = await this.adminMerchants();
+    return {
+      pendingMerchants: merchants.filter((merchant) => merchant.verificationStatus === "pending").length,
+      verifiedMerchants: merchants.filter((merchant) => merchant.verificationStatus === "verified").length,
+      openComplaints: this.complaintsList.filter((item) => item.status === "open" || item.status === "in_review").length,
+      totalUsers: this.usersList.length,
+      suspendedUsers: this.usersList.filter((user) => user.suspendedAt !== null).length,
+      ordersToday: this.soldToday,
+      grossToday: this.incomeToday,
+      gross30d: 3_465_000,
+    };
+  }
+
+  async adminMerchants(): Promise<AdminMerchant[]> {
+    if (this.store === null) return [...this.merchantsList];
+    const own: AdminMerchant = {
+      id: this.store.id,
+      storeName: this.store.name,
+      category: this.store.category,
+      address: this.store.address,
+      verificationStatus: this.store.verificationStatus,
+      verificationNote: this.store.verificationNote,
+      ownerName: this.profile.name,
+      ownerEmail: this.profile.email,
+      bagCount: this.bags.length,
+      createdAt: new Date(),
+    };
+    return [own, ...this.merchantsList];
+  }
+
+  async setMerchantVerification(merchantId: string, status: "verified" | "rejected", note?: string): Promise<void> {
+    const verificationNote = status === "rejected" ? (note ?? "").trim() : null;
+    if (this.store?.id === merchantId) {
+      this.store = { ...this.store, verificationStatus: status, verificationNote };
+      return;
+    }
+    const index = this.merchantsList.findIndex((merchant) => merchant.id === merchantId);
+    if (index < 0) throw new BackendException("merchant_not_found", "Toko tidak ditemukan atau sudah tidak aktif.");
+    this.merchantsList[index] = { ...this.merchantsList[index], verificationStatus: status, verificationNote };
+  }
+
+  async adminUsers(search?: string): Promise<AdminUser[]> {
+    const query = search?.trim().toLowerCase() ?? "";
+    return this.usersList.filter((user) => `${user.name} ${user.email}`.toLowerCase().includes(query));
+  }
+
+  async setUserSuspended(userId: string, suspended: boolean, reason?: string): Promise<void> {
+    const index = this.usersList.findIndex((user) => user.id === userId);
+    if (index < 0) throw new BackendException("user_not_found", "Pengguna tidak ditemukan.");
+    if (this.usersList[index].isAdmin) throw new BackendException("admin_suspend", "Akun Admin tidak dapat ditangguhkan.");
+    this.usersList[index] = {
+      ...this.usersList[index],
+      suspendedAt: suspended ? new Date() : null,
+      suspendedReason: suspended ? (reason ?? "").trim() : null,
+    };
+  }
+
+  async adminComplaints(): Promise<AdminComplaint[]> {
+    return [...this.complaintsList];
+  }
+
+  async updateComplaint(complaintId: string, status: Exclude<ComplaintStatus, "open">, note?: string): Promise<void> {
+    const index = this.complaintsList.findIndex((complaint) => complaint.id === complaintId);
+    if (index < 0) throw new BackendException("complaint_not_found", "Pengaduan tidak ditemukan.");
+    const current = this.complaintsList[index];
+    if (current.status === "resolved" || current.status === "rejected") {
+      throw new BackendException("complaint_closed", "Pengaduan ini sudah ditutup.");
+    }
+    this.complaintsList[index] = { ...current, status, adminNote: note?.trim() || current.adminNote };
+  }
+
+  async transactionReport(from: string, to: string): Promise<TransactionReport> {
+    const start = new Date(`${from}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      throw new BackendException("invalid_period", "Periode laporan tidak valid.");
+    }
+    return SampleData.transactionReport(start, end);
   }
 
   async myBags(): Promise<MerchantBag[]> {
@@ -925,7 +1059,16 @@ export class FakeBackend implements Backend {
 
   async deleteAccount(): Promise<void> {
     this.clearSessionCache();
-    this.profile = { id: "me", name: "Pengguna", email: "", phone: "", avatarUrl: null, lastMode: "consumer" };
+    this.profile = {
+      id: "me",
+      name: "Pengguna",
+      email: "",
+      phone: "",
+      avatarUrl: null,
+      lastMode: "consumer",
+      suspendedAt: null,
+      suspendedReason: null,
+    };
     this.store = null;
     this.lastMode = "consumer";
     this.favorites.clear();

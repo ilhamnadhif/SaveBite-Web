@@ -40,6 +40,8 @@ const profile = (id: string, name: string, email: string): Profile => ({
   phone: "",
   avatarUrl: null,
   lastMode: "consumer",
+  suspendedAt: null,
+  suspendedReason: null,
 });
 
 describe("app_state_concurrency_test", () => {

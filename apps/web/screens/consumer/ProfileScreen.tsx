@@ -131,9 +131,10 @@ export function ProfileScreen() {
           <MenuRow
             icon="storefront_outlined"
             label={switchingRole ? "Membuka mode penjual…" : "Beralih ke mode penjual"}
-            last
+            last={!state.isAdmin}
             onTap={switchingRole ? undefined : () => void switchToMerchant()}
           />
+          {state.isAdmin ? <MenuRow icon="policy_outlined" label="Buka panel Admin" last onTap={() => AppNav.toAdmin()} /> : null}
         </AppCard>
         <Gap h={18} />
         <SectionLabel text="Informasi & legal" />

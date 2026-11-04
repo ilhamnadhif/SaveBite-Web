@@ -8,10 +8,17 @@ import {
   FALLBACK_IMAGE,
   incomingOrder,
   orderRecord,
+  type AdminComplaint,
+  type AdminMerchant,
+  type AdminStats,
+  type AdminUser,
   type AppNotification,
   type Bag,
   type BankAccount,
   type BankAccountStatus,
+  type Complaint,
+  type ComplaintCategory,
+  type ComplaintStatus,
   type IncomingOrder,
   type IncomingOrderStatus,
   type Merchant,
@@ -25,8 +32,10 @@ import {
   type PayoutStatus,
   type Profile,
   type StoreProfile,
+  type TransactionReport,
   type TxKind,
   type TxRecord,
+  type VerificationStatus,
 } from "./models";
 
 export type Row = Record<string, unknown>;
@@ -439,6 +448,8 @@ export function profileFromMap(m: Row): Profile {
     phone: str(m.phone),
     avatarUrl: optional(m.avatar_url),
     lastMode: str(m.last_mode) || "consumer",
+    suspendedAt: parseDate(m.suspended_at),
+    suspendedReason: optional(m.suspended_reason),
   };
 }
 
@@ -454,6 +465,8 @@ export function storeFromMap(m: Row): StoreProfile {
     logoUrl: optional(m.logo_url),
     latitude: m.lat === null || m.lat === undefined ? null : asDouble(m.lat),
     longitude: m.lng === null || m.lng === undefined ? null : asDouble(m.lng),
+    verificationStatus: verificationStatus(m.verification_status),
+    verificationNote: optional(m.verification_note),
   };
 }
 
@@ -537,5 +550,111 @@ export function payoutRequestFromMap(m: Row, bankAccount?: BankAccount | null): 
     status,
     bankAccount: account,
     createdAt: parseDate(m.created_at ?? m.requested_at),
+  };
+}
+
+// ── Admin dan pengaduan ─────────────────────────────────────────────────────
+
+/** A row from a database without this column is an already-public store. */
+function verificationStatus(value: unknown): VerificationStatus {
+  return value === "pending" || value === "rejected" ? value : "verified";
+}
+
+function complaintCategory(value: unknown): ComplaintCategory {
+  return value === "product" || value === "quantity" || value === "pickup" || value === "payment" ? value : "other";
+}
+
+function complaintStatus(value: unknown): ComplaintStatus {
+  return value === "in_review" || value === "resolved" || value === "rejected" ? value : "open";
+}
+
+export function complaintFromMap(m: Row): Complaint {
+  return {
+    id: str(m.id),
+    orderId: str(m.order_id),
+    category: complaintCategory(m.category),
+    description: str(m.description),
+    status: complaintStatus(m.status),
+    adminNote: optional(m.admin_note),
+    createdAt: parseDate(m.created_at),
+  };
+}
+
+export function adminComplaintFromMap(m: Row): AdminComplaint {
+  return {
+    ...complaintFromMap(m),
+    orderReference: str(m.order_reference),
+    bagTitle: str(m.bag_title),
+    totalAmount: asInt(m.total_amount),
+    consumerName: str(m.consumer_name) || "Pengguna",
+    consumerEmail: str(m.consumer_email),
+    storeName: str(m.store_name),
+  };
+}
+
+export function adminMerchantFromMap(m: Row): AdminMerchant {
+  return {
+    id: str(m.id),
+    storeName: str(m.store_name),
+    category: str(m.category),
+    address: str(m.address),
+    verificationStatus: verificationStatus(m.verification_status),
+    verificationNote: optional(m.verification_note),
+    ownerName: str(m.owner_name) || "Pengguna",
+    ownerEmail: str(m.owner_email),
+    bagCount: asInt(m.bag_count),
+    createdAt: parseDate(m.created_at),
+  };
+}
+
+export function adminUserFromMap(m: Row): AdminUser {
+  return {
+    id: str(m.id),
+    name: str(m.name) || "Pengguna",
+    email: str(m.email),
+    createdAt: parseDate(m.created_at),
+    suspendedAt: parseDate(m.suspended_at),
+    suspendedReason: optional(m.suspended_reason),
+    isAdmin: m.is_admin === true,
+    storeName: optional(m.store_name),
+    orderCount: asInt(m.order_count),
+  };
+}
+
+export function adminStatsFromMap(m: Row): AdminStats {
+  return {
+    pendingMerchants: asInt(m.pending_merchants),
+    verifiedMerchants: asInt(m.verified_merchants),
+    openComplaints: asInt(m.open_complaints),
+    totalUsers: asInt(m.total_users),
+    suspendedUsers: asInt(m.suspended_users),
+    ordersToday: asInt(m.orders_today),
+    grossToday: asInt(m.gross_today),
+    gross30d: asInt(m.gross_30d),
+  };
+}
+
+export function transactionReportFromMap(m: Row): TransactionReport {
+  const summary = asMap(m.summary) ?? {};
+  const rows = (value: unknown): Row[] => (Array.isArray(value) ? (value as Row[]) : []);
+  return {
+    verifiedOrders: asInt(summary.verified_orders),
+    settledOrders: asInt(summary.settled_orders),
+    unsettledOrders: asInt(summary.unsettled_orders),
+    completedOrders: asInt(summary.completed_orders),
+    grossAmount: asInt(summary.gross_amount),
+    merchantNetAmount: asInt(summary.merchant_net_amount),
+    platformRevenue: asInt(summary.platform_revenue),
+    daily: rows(m.daily).map((day) => ({
+      day: str(day.day),
+      orders: asInt(day.orders),
+      grossAmount: asInt(day.gross_amount),
+    })),
+    topMerchants: rows(m.top_merchants).map((merchant) => ({
+      id: str(merchant.id),
+      storeName: str(merchant.store_name),
+      orders: asInt(merchant.orders),
+      grossAmount: asInt(merchant.gross_amount),
+    })),
   };
 }
