@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppNav } from "../../lib/appNav";
 import { appState, type AppState } from "../../lib/appState";
-import { formatRupiah, isAwaitingCustomer, isTerminalFailure, type OrderRecord } from "../../lib/models";
+import {
+  COMPLAINT_STATUS_LABELS,
+  canComplain,
+  formatRupiah,
+  isAwaitingCustomer,
+  isTerminalFailure,
+  type OrderRecord,
+} from "../../lib/models";
 import type { ConsumerOrdersTab } from "../../lib/notificationRoute";
 import { useAppState } from "../../lib/useAppState";
 import { FoodImage, StoreAvatar } from "../../ui/bagCards";
@@ -246,19 +253,37 @@ function HistoryCard({ order }: { order: OrderRecord }) {
         background: C.white,
         borderRadius: 18,
         border: `1px solid ${C.border}`,
-        display: "flex",
-        alignItems: "center",
-        opacity: expired || cancelled ? 0.76 : 1,
       }}
     >
-      <div style={{ width: 46, height: 46, borderRadius: 12, overflow: "hidden", flex: "none" }}>
-        <FoodImage path={order.bag.image} saturation={expired || cancelled ? 0.5 : 1} />
+      <div style={{ display: "flex", alignItems: "center", opacity: expired || cancelled ? 0.76 : 1 }}>
+        <div style={{ width: 46, height: 46, borderRadius: 12, overflow: "hidden", flex: "none" }}>
+          <FoodImage path={order.bag.image} saturation={expired || cancelled ? 0.5 : 1} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, marginLeft: 12, marginRight: 10 }}>
+          <div style={{ ...ui(14, { weight: 700, color: C.ink }), ...ellipsis }}>{order.bag.merchant.name}</div>
+          <div style={{ ...ui(12, { color: C.body }), marginTop: 2 }}>{`${order.dateLabel} · ${formatRupiah(order.amount)}`}</div>
+        </div>
+        <HistoryTrailing order={order} expired={expired} />
       </div>
-      <div style={{ flex: 1, minWidth: 0, marginLeft: 12, marginRight: 10 }}>
-        <div style={{ ...ui(14, { weight: 700, color: C.ink }), ...ellipsis }}>{order.bag.merchant.name}</div>
-        <div style={{ ...ui(12, { color: C.body }), marginTop: 2 }}>{`${order.dateLabel} · ${formatRupiah(order.amount)}`}</div>
+      <ComplaintLine order={order} />
+    </div>
+  );
+}
+
+function ComplaintLine({ order }: { order: OrderRecord }) {
+  const complaint = appState.complaintFor(order.id);
+  if (complaint) {
+    return (
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.divider}`, ...ui(12, { color: C.body, height: 1.4 }) }}>
+        {`Pengaduan: ${COMPLAINT_STATUS_LABELS[complaint.status]}`}
+        {complaint.adminNote ? ` · ${complaint.adminNote}` : ""}
       </div>
-      <HistoryTrailing order={order} expired={expired} />
+    );
+  }
+  if (!canComplain(order, complaint)) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <TextButton label="Ajukan pengaduan" color={C.body} fontSize={12} fontWeight={700} onTap={() => void AppNav.toComplaint(order)} />
     </div>
   );
 }

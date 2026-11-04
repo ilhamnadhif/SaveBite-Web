@@ -5,10 +5,17 @@
  *  - `FakeBackend` (in-memory sample data, only for the explicit demo mode).
  */
 import type {
+  AdminComplaint,
+  AdminMerchant,
+  AdminStats,
+  AdminUser,
   AppNotification,
   Bag,
   BagFilter,
   BankAccount,
+  Complaint,
+  ComplaintCategory,
+  ComplaintStatus,
   FavoriteStore,
   IncomingOrder,
   Merchant,
@@ -19,6 +26,7 @@ import type {
   PayoutRequest,
   Profile,
   StoreProfile,
+  TransactionReport,
   TxRecord,
 } from "../models";
 
@@ -145,6 +153,23 @@ export interface Backend {
   orderHistory(): Promise<OrderRecord[]>;
   issuePickupToken(order: OrderRecord): Promise<OrderRecord>;
   submitReview(order: OrderRecord, rating: number, tags: string[], comment: string): Promise<void>;
+
+  // ── Pengaduan ──
+  myComplaints(): Promise<Complaint[]>;
+  submitComplaint(order: OrderRecord, category: ComplaintCategory, description: string): Promise<Complaint>;
+
+  // ── Admin ──
+  /** Best effort at startup; every admin RPC still checks the role itself. */
+  isAdmin(): Promise<boolean>;
+  adminStats(): Promise<AdminStats>;
+  adminMerchants(): Promise<AdminMerchant[]>;
+  setMerchantVerification(merchantId: string, status: "verified" | "rejected", note?: string): Promise<void>;
+  adminUsers(search?: string): Promise<AdminUser[]>;
+  setUserSuspended(userId: string, suspended: boolean, reason?: string): Promise<void>;
+  adminComplaints(): Promise<AdminComplaint[]>;
+  updateComplaint(complaintId: string, status: Exclude<ComplaintStatus, "open">, note?: string): Promise<void>;
+  /** `from` and `to` are `YYYY-MM-DD` in Asia/Jakarta. */
+  transactionReport(from: string, to: string): Promise<TransactionReport>;
 
   // ── Notifikasi ──
   notifications(): Promise<AppNotification[]>;

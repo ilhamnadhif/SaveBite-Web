@@ -24,6 +24,7 @@ export function ShellFrame({
   tabUrl,
   onSelect,
   reloadAll,
+  sidebar,
 }: {
   index: number;
   setIndex: (index: number) => void;
@@ -35,6 +36,8 @@ export function ShellFrame({
   onSelect: (index: number) => void;
   /** Full refresh on open and when the app resumes (`_reloadAll`). */
   reloadAll: () => Promise<unknown>;
+  /** Replaces the bottom navigation in the wide Admin workspace. */
+  sidebar?: (select: (index: number) => void) => ReactNode;
 }) {
   const { key, isTop } = useNavEntry();
   const [mounted, setMounted] = useState<ReadonlySet<number>>(() => new Set([index]));
@@ -103,8 +106,12 @@ export function ShellFrame({
   };
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: C.cream }}>
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+    <div
+      className={sidebar ? "sb-admin-layout" : undefined}
+      style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: sidebar ? undefined : "column", background: C.cream }}
+    >
+      {sidebar?.(select)}
+      <div style={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0 }}>
         {items.map((item, tabIndex) =>
           mounted.has(tabIndex) || tabIndex === index ? (
             <div
@@ -128,7 +135,7 @@ export function ShellFrame({
           ) : null,
         )}
       </div>
-      <AppBottomNav items={items} currentIndex={index} onTap={select} activeColor={activeColor} />
+      {sidebar ? null : <AppBottomNav items={items} currentIndex={index} onTap={select} activeColor={activeColor} />}
     </div>
   );
 }

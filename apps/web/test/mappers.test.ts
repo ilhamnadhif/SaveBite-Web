@@ -523,6 +523,8 @@ describe("merchant, bag, profile, and store rows", () => {
       phone: "",
       avatarUrl: null,
       lastMode: "consumer",
+      suspendedAt: null,
+      suspendedReason: null,
     });
     expect(profileFromMap({ id: "u-1", last_mode: "merchant", avatar_url: "https://cdn/a.png" })).toMatchObject({
       lastMode: "merchant",
@@ -539,6 +541,8 @@ describe("merchant, bag, profile, and store rows", () => {
       logoUrl: null,
       latitude: null,
       longitude: null,
+      verificationStatus: "verified",
+      verificationNote: null,
     });
     expect(storeFromMap({ lat: "-6.372", lng: 106.8318 })).toMatchObject({ latitude: -6.372, longitude: 106.8318 });
   });

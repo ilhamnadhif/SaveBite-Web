@@ -170,6 +170,8 @@ class RealtimeNotificationBackend extends FakeBackend {
       logoUrl: null,
       latitude: null,
       longitude: null,
+      verificationStatus: "verified",
+      verificationNote: null,
     };
   }
 

@@ -42,6 +42,7 @@ export function LoginScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(() => (errorCode ? (CALLBACK_ERRORS[errorCode] ?? null) : null));
   const target = next || (merchant ? "/merchant" : "/");
+  const admin = target === "/admin" || target.startsWith("/admin/");
 
   const login = async (provider: () => Promise<boolean>) => {
     if (busy) return;
@@ -58,7 +59,7 @@ export function LoginScreen({
         // On success the browser is leaving for the provider: stay busy.
         return;
       }
-      await AppNav.completeLogin({ merchant });
+      await AppNav.completeLogin({ merchant, next });
       setBusy(false);
     } catch {
       setError("Login gagal dimulai. Periksa koneksi lalu coba lagi.");
@@ -97,7 +98,9 @@ export function LoginScreen({
         <AppLogo size={72} />
         <h1 style={{ ...display(26, { weight: 800, color: C.ink }), marginTop: 26 }}>Tinggal selangkah lagi</h1>
         <p style={{ ...ui(15, { color: C.body, height: 1.5 }), marginTop: 8, maxWidth: 300 }}>
-          {merchant
+          {admin
+            ? "Masuk dengan akun Admin untuk mengelola penjual, pengguna, dan pengaduan."
+            : merchant
             ? "Masuk untuk menyiapkan toko dan menyelamatkan stok makananmu."
             : "Masuk untuk menemukan dan memesan Surprise Bag di sekitarmu."}
         </p>

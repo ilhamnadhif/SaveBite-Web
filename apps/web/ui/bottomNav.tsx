@@ -21,6 +21,14 @@ export const MERCHANT_NAV_ITEMS: readonly NavItem[] = [
   { outlined: "person_outline_rounded", filled: "person_rounded", label: "Profil" },
 ];
 
+export const ADMIN_NAV_ITEMS: readonly NavItem[] = [
+  { outlined: "grid_view_outlined", filled: "grid_view_rounded", label: "Dashboard" },
+  { outlined: "storefront_outlined", filled: "storefront_rounded", label: "Verifikasi Penjual" },
+  { outlined: "person_outline_rounded", filled: "person_rounded", label: "Pengguna" },
+  { outlined: "support_agent_outlined", filled: "support_agent_outlined", label: "Pengaduan" },
+  { outlined: "insights_outlined", filled: "bar_chart_rounded", label: "Laporan Transaksi" },
+];
+
 /** Generic bottom navigation used by the consumer and merchant shells. */
 export function AppBottomNav({
   items,

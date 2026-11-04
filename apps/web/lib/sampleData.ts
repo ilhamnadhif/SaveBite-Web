@@ -13,6 +13,9 @@ import {
   incomingOrder,
   merchantBag,
   orderRecord,
+  type AdminComplaint,
+  type AdminMerchant,
+  type AdminUser,
   type AppNotification,
   type Bag,
   type FavoriteStore,
@@ -20,6 +23,8 @@ import {
   type Merchant,
   type MerchantBag,
   type OrderRecord,
+  type ReportDay,
+  type TransactionReport,
   type TxRecord,
 } from "./models";
 
@@ -592,5 +597,156 @@ export const SampleData = Object.freeze({
       tx({ id: "tx-2", title: "Order SB-3M8X1", subtitle: "17 Jun · komisi Rp2.000", amount: 18000, kind: "income" }),
       tx({ id: "tx-3", title: "Penarikan ke BCA", subtitle: "15 Jun · ••6789", amount: 1500000, kind: "withdrawal" }),
     ];
+  },
+
+  get adminMerchants(): AdminMerchant[] {
+    const now = Date.now();
+    const days = (count: number) => new Date(now - count * 86_400_000);
+    return [
+      {
+        id: "admin-m1",
+        storeName: "Dapur Bu Sari",
+        category: "Resto",
+        address: "Jl. Kemang Raya 12, Jakarta",
+        verificationStatus: "pending",
+        verificationNote: null,
+        ownerName: "Sari Wulandari",
+        ownerEmail: "sari@dapurbusari.id",
+        bagCount: 3,
+        createdAt: days(0),
+      },
+      {
+        id: "admin-m2",
+        storeName: "Kopi Lembayung",
+        category: "Kafe",
+        address: "Jl. Margonda 88, Depok",
+        verificationStatus: "pending",
+        verificationNote: null,
+        ownerName: "Bima Saputra",
+        ownerEmail: "bima@kopilembayung.id",
+        bagCount: 1,
+        createdAt: days(1),
+      },
+      {
+        id: "admin-m3",
+        storeName: "Pasar Sayur Pagi",
+        category: "Supermarket",
+        address: "Jl. Raya Bogor 5, Cibinong",
+        verificationStatus: "rejected",
+        verificationNote: "Alamat toko belum lengkap.",
+        ownerName: "Rudi Hartono",
+        ownerEmail: "rudi@sayurpagi.id",
+        bagCount: 0,
+        createdAt: days(4),
+      },
+      {
+        id: "admin-m4",
+        storeName: rotiNyaman.name,
+        category: rotiNyaman.category,
+        address: rotiNyaman.address,
+        verificationStatus: "verified",
+        verificationNote: null,
+        ownerName: "Nadia Putri",
+        ownerEmail: "nadia@rotinyaman.id",
+        bagCount: 6,
+        createdAt: days(21),
+      },
+    ];
+  },
+
+  get adminUsers(): AdminUser[] {
+    const now = Date.now();
+    const days = (count: number) => new Date(now - count * 86_400_000);
+    const user = (fields: Pick<AdminUser, "id" | "name" | "email"> & Partial<AdminUser>): AdminUser => ({
+      createdAt: days(14),
+      suspendedAt: null,
+      suspendedReason: null,
+      isAdmin: false,
+      storeName: null,
+      orderCount: 0,
+      ...fields,
+    });
+    return [
+      user({ id: "admin-u1", name: "Admin SaveBite", email: "admin@savebite.id", isAdmin: true, createdAt: days(60) }),
+      user({ id: "admin-u2", name: "Nadia Putri", email: "nadia@rotinyaman.id", storeName: rotiNyaman.name, createdAt: days(21) }),
+      user({ id: "admin-u3", name: "Dimas Arya", email: "dimas@gmail.com", orderCount: 9, createdAt: days(18) }),
+      user({ id: "admin-u4", name: "Ayu Lestari", email: "ayu@gmail.com", orderCount: 4, createdAt: days(9) }),
+      user({
+        id: "admin-u5",
+        name: "Reza Pratama",
+        email: "reza@gmail.com",
+        orderCount: 1,
+        createdAt: days(6),
+        suspendedAt: days(2),
+        suspendedReason: "Tiga kali tidak mengambil pesanan.",
+      }),
+    ];
+  },
+
+  get adminComplaints(): AdminComplaint[] {
+    const now = Date.now();
+    return [
+      {
+        id: "complaint-1",
+        orderId: "order-sample-1",
+        category: "quantity",
+        description: "Isi bag kurang satu roti dari yang tertulis di detail pesanan.",
+        status: "open",
+        adminNote: null,
+        createdAt: new Date(now - 3 * 3_600_000),
+        orderReference: "SB-2H7C4",
+        bagTitle: bagRoti.title,
+        totalAmount: 16000,
+        consumerName: "Dimas Arya",
+        consumerEmail: "dimas@gmail.com",
+        storeName: bagRoti.merchant.name,
+      },
+      {
+        id: "complaint-2",
+        orderId: "order-sample-2",
+        category: "pickup",
+        description: "Toko sudah tutup sebelum jam pengambilan berakhir.",
+        status: "in_review",
+        adminNote: "Sedang dikonfirmasi ke penjual.",
+        createdAt: new Date(now - 26 * 3_600_000),
+        orderReference: "SB-7K3D9",
+        bagTitle: bagKopi.title,
+        totalAmount: 21000,
+        consumerName: "Ayu Lestari",
+        consumerEmail: "ayu@gmail.com",
+        storeName: bagKopi.merchant.name,
+      },
+    ];
+  },
+
+  transactionReport(start: Date, end: Date): TransactionReport {
+    const daily: ReportDay[] = [];
+    for (let time = start.getTime(), index = 0; time <= end.getTime(); time += 86_400_000, index++) {
+      const date = new Date(time);
+      const orders = 4 + ((index * 7 + date.getDate()) % 9);
+      const pad = (value: number) => String(value).padStart(2, "0");
+      daily.push({
+        day: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+        orders,
+        grossAmount: orders * 21000,
+      });
+    }
+    const settledOrders = daily.reduce((sum, day) => sum + day.orders, 0);
+    const grossAmount = daily.reduce((sum, day) => sum + day.grossAmount, 0);
+    const platformRevenue = settledOrders * 3000;
+    return {
+      verifiedOrders: settledOrders + 2,
+      settledOrders,
+      unsettledOrders: 2,
+      completedOrders: Math.round(settledOrders * 0.9),
+      grossAmount,
+      merchantNetAmount: grossAmount - platformRevenue,
+      platformRevenue,
+      daily,
+      topMerchants: [
+        { id: "m1", storeName: rotiNyaman.name, orders: Math.round(settledOrders * 0.5), grossAmount: Math.round(grossAmount * 0.5) },
+        { id: "m2", storeName: bagKopi.merchant.name, orders: Math.round(settledOrders * 0.3), grossAmount: Math.round(grossAmount * 0.3) },
+      ],
+    };
   },
 });

@@ -12,8 +12,13 @@ import { supabaseBrowser } from "@savebite/web-shared/client";
 import { authCallbackUrl, publicConfig } from "@savebite/web-shared";
 import { compressImage, pickImageFile } from "../imagePicker";
 import {
+  adminComplaintFromMap,
+  adminMerchantFromMap,
+  adminStatsFromMap,
+  adminUserFromMap,
   bagFromMap,
   bankAccountFromMap,
+  complaintFromMap,
   incomingOrderFromMap,
   initials2,
   merchantBagFromMap,
@@ -25,6 +30,7 @@ import {
   payoutRequestFromMap,
   profileFromMap,
   storeFromMap,
+  transactionReportFromMap,
   timeLabel,
   txFromMap,
   type Row,
@@ -36,10 +42,17 @@ import {
   bagMatchesFilter,
   incomingOrder,
   normalizeBagContents,
+  type AdminComplaint,
+  type AdminMerchant,
+  type AdminStats,
+  type AdminUser,
   type AppNotification,
   type Bag,
   type BagFilter,
   type BankAccount,
+  type Complaint,
+  type ComplaintCategory,
+  type ComplaintStatus,
   type FavoriteStore,
   type IncomingOrder,
   type Merchant,
@@ -50,6 +63,7 @@ import {
   type PayoutRequest,
   type Profile,
   type StoreProfile,
+  type TransactionReport,
   type TxRecord,
 } from "../models";
 import {
@@ -112,6 +126,13 @@ export function decodeRpcRow(value: unknown): Row {
   const row = Array.isArray(value) ? (value.length ? value[0] : null) : value;
   if (row && typeof row === "object" && !Array.isArray(row)) return row as Row;
   throw new BackendException("invalid_response", "Respons server tidak valid.");
+}
+
+/** A `jsonb` array returned by an RPC. */
+function rowList(value: unknown): Row[] {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) throw new BackendException("invalid_response", "Respons server tidak valid.");
+  return value as Row[];
 }
 
 function rpcBool(value: unknown): boolean {
@@ -198,6 +219,24 @@ export function mapPostgrestError(error: PostgrestError | { message?: string; de
   const bank = bankAccountExceptionFromMessage(raw);
   if (bank) return bank;
   const rules: Array<[boolean, string, string]> = [
+    [raw.includes("admin access required"), "admin_required", "Akses ini khusus Admin."],
+    [raw.includes("account is suspended"), "account_suspended", "Akun ini sedang ditangguhkan."],
+    [raw.includes("merchant is not verified"), "merchant_not_verified", "Toko ini belum terverifikasi."],
+    [raw.includes("complaint already submitted"), "complaint_exists", "Pengaduan untuk pesanan ini sudah pernah dikirim."],
+    [raw.includes("not eligible for a complaint"), "complaint_not_allowed", "Pesanan ini belum bisa diadukan."],
+    [raw.includes("invalid complaint description"), "invalid_complaint", "Jelaskan masalahnya minimal 10 karakter."],
+    [raw.includes("complaint is already closed"), "complaint_closed", "Pengaduan ini sudah ditutup."],
+    [raw.includes("complaint not found"), "complaint_not_found", "Pengaduan tidak ditemukan."],
+    [
+      raw.includes("note is required") || raw.includes("follow-up is required") || raw.includes("reason is required"),
+      "note_required",
+      "Tuliskan alasannya minimal 5 karakter.",
+    ],
+    [raw.includes("cannot suspend their own account"), "self_suspend", "Admin tidak dapat menangguhkan akunnya sendiri."],
+    [raw.includes("admin accounts cannot be suspended"), "admin_suspend", "Akun Admin tidak dapat ditangguhkan."],
+    [raw.includes("user not found"), "user_not_found", "Pengguna tidak ditemukan."],
+    [raw.includes("invalid report period"), "invalid_period", "Periode laporan tidak valid."],
+    [raw.includes("report period is too long"), "invalid_period", "Periode laporan maksimal satu tahun."],
     [raw.includes("insufficient stock"), "insufficient_stock", "Stok bag sudah berubah. Silakan cek kembali."],
     [raw.includes("not authenticated"), "not_authenticated", "Sesi berakhir. Silakan masuk kembali."],
     [raw.includes("merchant cannot purchase"), "self_purchase_forbidden", "Merchant tidak dapat membeli bag dari tokonya sendiri."],
@@ -381,6 +420,8 @@ export class SupabaseBackend implements Backend {
       phone: "",
       avatarUrl: typeof metadata.avatar_url === "string" ? metadata.avatar_url : null,
       lastMode: "consumer",
+      suspendedAt: null,
+      suspendedReason: null,
     };
   }
 
@@ -534,6 +575,67 @@ export class SupabaseBackend implements Backend {
       idempotency_key: idempotencyKey,
     });
     return { ...orderRecordFromMap(row), bag };
+  }
+
+  // ── Pengaduan ──
+  async myComplaints(): Promise<Complaint[]> {
+    const uid = await this.uid();
+    if (!uid) return [];
+    const rows = await this.raw(this.sb.from("complaints").select().eq("consumer_id", uid));
+    return ((rows ?? []) as Row[]).map(complaintFromMap);
+  }
+
+  async submitComplaint(order: OrderRecord, category: ComplaintCategory, description: string): Promise<Complaint> {
+    const row = await this.guard(
+      this.sb.rpc("submit_complaint", { p_order_id: order.id, p_category: category, p_description: description.trim() }),
+    );
+    return complaintFromMap(decodeRpcRow(row));
+  }
+
+  // ── Admin ──
+  async isAdmin(): Promise<boolean> {
+    if (!(await this.uid())) return false;
+    return rpcBool(await this.raw(this.sb.rpc("current_user_is_admin")));
+  }
+
+  async adminStats(): Promise<AdminStats> {
+    return adminStatsFromMap(decodeRpcRow(await this.guard(this.sb.rpc("admin_dashboard_stats"))));
+  }
+
+  async adminMerchants(): Promise<AdminMerchant[]> {
+    return rowList(await this.guard(this.sb.rpc("admin_list_merchants"))).map(adminMerchantFromMap);
+  }
+
+  async setMerchantVerification(merchantId: string, status: "verified" | "rejected", note?: string): Promise<void> {
+    await this.guard(
+      this.sb.rpc("admin_set_merchant_verification", { p_merchant_id: merchantId, p_status: status, p_note: note ?? null }),
+    );
+  }
+
+  async adminUsers(search?: string): Promise<AdminUser[]> {
+    return rowList(await this.guard(this.sb.rpc("admin_list_users", { p_search: search?.trim() || null }))).map(adminUserFromMap);
+  }
+
+  async setUserSuspended(userId: string, suspended: boolean, reason?: string): Promise<void> {
+    await this.guard(
+      this.sb.rpc("admin_set_user_suspended", { p_user_id: userId, p_suspended: suspended, p_reason: reason ?? null }),
+    );
+  }
+
+  async adminComplaints(): Promise<AdminComplaint[]> {
+    return rowList(await this.guard(this.sb.rpc("admin_list_complaints"))).map(adminComplaintFromMap);
+  }
+
+  async updateComplaint(complaintId: string, status: Exclude<ComplaintStatus, "open">, note?: string): Promise<void> {
+    await this.guard(
+      this.sb.rpc("admin_update_complaint", { p_complaint_id: complaintId, p_status: status, p_note: note ?? null }),
+    );
+  }
+
+  async transactionReport(from: string, to: string): Promise<TransactionReport> {
+    return transactionReportFromMap(
+      decodeRpcRow(await this.guard(this.sb.rpc("admin_transaction_report", { p_from: from, p_to: to }))),
+    );
   }
 
   async refreshPayment(order: OrderRecord): Promise<OrderRecord> {

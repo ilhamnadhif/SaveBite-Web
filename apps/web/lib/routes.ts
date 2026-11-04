@@ -6,11 +6,12 @@
 
 export type LegalDocument = "terms" | "privacy" | "refundPolicy";
 
-export type RouteSpace = "public" | "consumer" | "merchant" | "shared";
+export type RouteSpace = "public" | "consumer" | "merchant" | "admin" | "shared";
 
 export type RouteMatch =
   | { name: "consumerTab"; tab: number }
   | { name: "merchantTab"; tab: number }
+  | { name: "adminTab"; tab: number }
   | { name: "onboarding" }
   | { name: "fork" }
   | { name: "login" }
@@ -26,6 +27,7 @@ export type RouteMatch =
   | { name: "resumePayment"; orderId: string }
   | { name: "voucher"; orderId: string }
   | { name: "rating"; orderId: string }
+  | { name: "complaint"; orderId: string }
   | { name: "storeProfile"; merchantId: string }
   | { name: "editProfile" }
   | { name: "storeSetup" }
@@ -39,6 +41,7 @@ export type RouteMatch =
 
 export const CONSUMER_TAB_PATHS = ["/", "/map", "/orders", "/favorites", "/profile"] as const;
 export const MERCHANT_TAB_PATHS = ["/merchant", "/merchant/bags", "/merchant/orders", "/merchant/balance", "/merchant/profile"] as const;
+export const ADMIN_TAB_PATHS = ["/admin", "/admin/sellers", "/admin/users", "/admin/complaints", "/admin/reports"] as const;
 
 const LEGAL_SLUGS: Record<string, LegalDocument> = { terms: "terms", privacy: "privacy", refund: "refundPolicy" };
 export const legalSlug = (document: LegalDocument) =>
@@ -52,6 +55,7 @@ const encode = (value: string) => encodeURIComponent(value);
 export const paths = {
   consumerTab: (tab: number, query?: Record<string, string | undefined>) => withQuery(CONSUMER_TAB_PATHS[tab] ?? "/", query),
   merchantTab: (tab: number, query?: Record<string, string | undefined>) => withQuery(MERCHANT_TAB_PATHS[tab] ?? "/merchant", query),
+  adminTab: (tab: number) => ADMIN_TAB_PATHS[tab] ?? "/admin",
   onboarding: () => "/onboarding",
   fork: () => "/welcome",
   login: (merchant: boolean, next?: string) => withQuery("/login", { role: merchant ? "merchant" : "consumer", next }),
@@ -69,6 +73,7 @@ export const paths = {
   resumePayment: (orderId: string) => `/orders/${encode(orderId)}/payment`,
   voucher: (orderId: string) => `/orders/${encode(orderId)}/voucher`,
   rating: (orderId: string) => `/orders/${encode(orderId)}/review`,
+  complaint: (orderId: string) => `/orders/${encode(orderId)}/complaint`,
   storeProfile: (merchantId: string) => `/stores/${encode(merchantId)}`,
   editProfile: () => "/profile/edit",
   storeSetup: () => "/merchant/setup",
@@ -103,6 +108,8 @@ export function matchRoute(pathname: string): RouteMatch | null {
   if (consumerTab >= 0) return { name: "consumerTab", tab: consumerTab };
   const merchantTab = (MERCHANT_TAB_PATHS as readonly string[]).indexOf(clean);
   if (merchantTab >= 0) return { name: "merchantTab", tab: merchantTab };
+  const adminTab = (ADMIN_TAB_PATHS as readonly string[]).indexOf(clean);
+  if (adminTab >= 0) return { name: "adminTab", tab: adminTab };
 
   const [a, b, c, d] = segments;
   const id = (value: string | undefined) => (value && ID.test(value) ? value : null);
@@ -132,6 +139,7 @@ export function matchRoute(pathname: string): RouteMatch | null {
       if (a === "orders" && id(b) && c === "payment") return { name: "resumePayment", orderId: b };
       if (a === "orders" && id(b) && c === "voucher") return { name: "voucher", orderId: b };
       if (a === "orders" && id(b) && c === "review") return { name: "rating", orderId: b };
+      if (a === "orders" && id(b) && c === "complaint") return { name: "complaint", orderId: b };
       if (a === "merchant" && b === "bags" && c === "new") return { name: "createBag" };
       if (a === "merchant" && b === "orders" && id(c)) return { name: "orderDetail", orderId: c };
       if (a === "merchant" && b === "store" && c === "edit") return { name: "editStore" };
@@ -166,6 +174,8 @@ export function routeSpace(match: RouteMatch): RouteSpace {
     case "scanQr":
     case "withdrawSuccess":
       return "merchant";
+    case "adminTab":
+      return "admin";
     default:
       return "consumer";
   }

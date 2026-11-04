@@ -28,6 +28,7 @@ import {
   validCoordinates,
 } from "./location";
 import {
+  EMPTY_ADMIN_STATS,
   EMPTY_FILTER,
   bagMatchesFilter,
   bankLabel,
@@ -35,10 +36,17 @@ import {
   isAwaitingCustomer,
   isPaid,
   isTerminalFailure,
+  type AdminComplaint,
+  type AdminMerchant,
+  type AdminStats,
+  type AdminUser,
   type AppNotification,
   type Bag,
   type BagFilter,
   type BankAccount,
+  type Complaint,
+  type ComplaintCategory,
+  type ComplaintStatus,
   type FavoriteStore,
   type IncomingOrder,
   type MerchantBag,
@@ -48,7 +56,9 @@ import {
   type PayoutRequest,
   type Profile,
   type StoreProfile,
+  type TransactionReport,
   type TxRecord,
+  type VerificationStatus,
 } from "./models";
 import { isMerchantOrdersNotificationRoute } from "./notificationRoute";
 
@@ -63,7 +73,10 @@ type LoadScope =
   | "store"
   | "merchant"
   | "merchantReviews"
-  | "balance";
+  | "balance"
+  | "admin"
+  | "adminUsers"
+  | "report";
 
 const KEYS = {
   onboarding: "onboarding_seen",
@@ -163,6 +176,9 @@ export class AppState {
     merchant: 0,
     merchantReviews: 0,
     balance: 0,
+    admin: 0,
+    adminUsers: 0,
+    report: 0,
   };
   private notificationSubscription: Unsubscribe | null = null;
   private incomingSubscription: Unsubscribe | null = null;
@@ -207,6 +223,23 @@ export class AppState {
   isLoadingMerchantReviews = false;
   isLoadingBalance = false;
   isLoadingNotifications = false;
+  isLoadingAdmin = false;
+  isLoadingAdminUsers = false;
+  isLoadingReport = false;
+
+  /** From `current_user_is_admin()`. Every admin RPC still checks the role. */
+  isAdmin = false;
+  accountSuspended = false;
+  suspendedReason: string | null = null;
+  storeVerification: VerificationStatus = "verified";
+  storeVerificationNote: string | null = null;
+
+  complaints: Complaint[] = [];
+  adminStats: AdminStats = EMPTY_ADMIN_STATS;
+  adminMerchants: AdminMerchant[] = [];
+  adminUsers: AdminUser[] = [];
+  adminComplaints: AdminComplaint[] = [];
+  report: TransactionReport | null = null;
 
   /**
    * Global error only for bootstrap, location, and cross-domain operations.
@@ -242,6 +275,15 @@ export class AppState {
   }
   get balanceError() {
     return this.loadErrors.get("balance") ?? null;
+  }
+  get adminError() {
+    return this.loadErrors.get("admin") ?? null;
+  }
+  get adminUsersError() {
+    return this.loadErrors.get("adminUsers") ?? null;
+  }
+  get transactionReportError() {
+    return this.loadErrors.get("report") ?? null;
   }
 
   defaultPaymentMethod = "QRIS";
@@ -687,15 +729,19 @@ export class AppState {
     this.errorMessage = null;
     this.notifyListeners();
     try {
-      const [profile, store, config] = await Promise.all([
+      const [profile, store, config, isAdmin] = await Promise.all([
         backend().currentProfile(),
         backend().myStore(),
         backend().businessConfig(),
+        backend()
+          .isAdmin()
+          .catch(() => false),
       ]);
       if (epoch !== this.sessionEpoch) return;
       this.applyProfile(profile);
       this.applyStore(store);
       this.businessConfig = config;
+      this.isAdmin = isAdmin;
       await this.startRealtime(epoch);
     } catch (error) {
       if (epoch === this.sessionEpoch) {
@@ -783,8 +829,16 @@ export class AppState {
     this.loadErrors.delete("orders");
     this.notifyListeners();
     try {
-      const [loadedActive, loadedHistory] = await Promise.all([backend().activeOrders(), backend().orderHistory()]);
+      // Complaint status is extra detail: orders must load without it.
+      const [loadedActive, loadedHistory, loadedComplaints] = await Promise.all([
+        backend().activeOrders(),
+        backend().orderHistory(),
+        backend()
+          .myComplaints()
+          .catch(() => this.complaints),
+      ]);
       if (epoch !== this.sessionEpoch || generation !== this.generations.orders) return;
+      this.complaints = loadedComplaints;
       this.active = loadedActive.filter((order) => !isTerminalFailure(order.paymentState));
       this.history = [...loadedHistory];
       for (const terminal of loadedActive.filter((order) => isTerminalFailure(order.paymentState))) {
@@ -906,6 +960,99 @@ export class AppState {
         this.notifyListeners();
       }
     }
+  }
+
+  complaintFor(orderId: string): Complaint | null {
+    return this.complaints.find((complaint) => complaint.orderId === orderId) ?? null;
+  }
+
+  async submitComplaint(order: OrderRecord, category: ComplaintCategory, description: string) {
+    const complaint = await backend().submitComplaint(order, category, description);
+    this.complaints = [complaint, ...this.complaints];
+    this.notifyListeners();
+  }
+
+  // ── Admin ──────────────────────────────────────────────────────────────
+
+  async loadAdminData() {
+    const epoch = this.sessionEpoch;
+    const generation = ++this.generations.admin;
+    this.isLoadingAdmin = true;
+    this.loadErrors.delete("admin");
+    this.notifyListeners();
+    try {
+      const [stats, merchants, complaints] = await Promise.all([
+        backend().adminStats(),
+        backend().adminMerchants(),
+        backend().adminComplaints(),
+      ]);
+      if (epoch !== this.sessionEpoch || generation !== this.generations.admin) return;
+      this.adminStats = stats;
+      this.adminMerchants = merchants;
+      this.adminComplaints = complaints;
+    } catch (error) {
+      if (generation === this.generations.admin) this.setLoadError("admin", error, epoch);
+    } finally {
+      if (epoch === this.sessionEpoch && generation === this.generations.admin) {
+        this.isLoadingAdmin = false;
+        this.notifyListeners();
+      }
+    }
+  }
+
+  async loadAdminUsers(search?: string) {
+    const epoch = this.sessionEpoch;
+    const generation = ++this.generations.adminUsers;
+    this.isLoadingAdminUsers = true;
+    this.loadErrors.delete("adminUsers");
+    this.notifyListeners();
+    try {
+      const users = await backend().adminUsers(search);
+      if (epoch !== this.sessionEpoch || generation !== this.generations.adminUsers) return;
+      this.adminUsers = users;
+    } catch (error) {
+      if (generation === this.generations.adminUsers) this.setLoadError("adminUsers", error, epoch);
+    } finally {
+      if (epoch === this.sessionEpoch && generation === this.generations.adminUsers) {
+        this.isLoadingAdminUsers = false;
+        this.notifyListeners();
+      }
+    }
+  }
+
+  async loadReport(from: string, to: string) {
+    const epoch = this.sessionEpoch;
+    const generation = ++this.generations.report;
+    this.isLoadingReport = true;
+    this.loadErrors.delete("report");
+    this.notifyListeners();
+    try {
+      const report = await backend().transactionReport(from, to);
+      if (epoch !== this.sessionEpoch || generation !== this.generations.report) return;
+      this.report = report;
+    } catch (error) {
+      if (generation === this.generations.report) this.setLoadError("report", error, epoch);
+    } finally {
+      if (epoch === this.sessionEpoch && generation === this.generations.report) {
+        this.isLoadingReport = false;
+        this.notifyListeners();
+      }
+    }
+  }
+
+  async setMerchantVerification(merchantId: string, status: "verified" | "rejected", note?: string) {
+    await backend().setMerchantVerification(merchantId, status, note);
+    await this.loadAdminData();
+  }
+
+  async setUserSuspended(userId: string, suspended: boolean, reason?: string) {
+    await backend().setUserSuspended(userId, suspended, reason);
+    await Promise.all([this.loadAdminUsers(), this.loadAdminData()]);
+  }
+
+  async updateComplaint(complaintId: string, status: Exclude<ComplaintStatus, "open">, note?: string) {
+    await backend().updateComplaint(complaintId, status, note);
+    await this.loadAdminData();
   }
 
   async loadBalance() {
@@ -1457,6 +1604,17 @@ export class AppState {
     this.incomeToday = 0;
     this.incomeThisMonth = 0;
     this.foodSavedKg = 0;
+    this.isAdmin = false;
+    this.accountSuspended = false;
+    this.suspendedReason = null;
+    this.storeVerification = "verified";
+    this.storeVerificationNote = null;
+    this.complaints = [];
+    this.adminStats = EMPTY_ADMIN_STATS;
+    this.adminMerchants = [];
+    this.adminUsers = [];
+    this.adminComplaints = [];
+    this.report = null;
     this.resetLoadingState();
     this.errorMessage = null;
     this.loadErrors.clear();
@@ -1481,6 +1639,8 @@ export class AppState {
     this.userPhone = profile.phone;
     this.userAvatarUrl = profile.avatarUrl;
     this.lastMode = profile.lastMode;
+    this.accountSuspended = profile.suspendedAt !== null;
+    this.suspendedReason = profile.suspendedReason;
   }
 
   private applyStore(store: StoreProfile | null) {
@@ -1495,6 +1655,8 @@ export class AppState {
     this.storeLogoUrl = store.logoUrl;
     this.storeLatitude = store.latitude;
     this.storeLongitude = store.longitude;
+    this.storeVerification = store.verificationStatus;
+    this.storeVerificationNote = store.verificationNote;
   }
 
   private applyStats(stats: MerchantStats) {
@@ -1532,6 +1694,9 @@ export class AppState {
     this.isLoadingMerchantReviews = false;
     this.isLoadingBalance = false;
     this.isLoadingNotifications = false;
+    this.isLoadingAdmin = false;
+    this.isLoadingAdminUsers = false;
+    this.isLoadingReport = false;
     this.isDeterminingLocation = false;
   }
 

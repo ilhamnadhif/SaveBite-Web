@@ -360,6 +360,7 @@ describe("favorite atomic", () => {
     const backend = new FakeBackend();
     expect((await backendError(backend.toggleFavorite("store-me"))).code).toBe("merchant_not_found");
     await backend.upsertStore(storeInput());
+    await backend.setMerchantVerification("store-me", "verified");
     expect(await backend.toggleFavorite("store-me")).toBe(true);
     expect((await backend.favoriteStores()).find((store) => store.merchant.id === "store-me")).toMatchObject({
       availability: "Habis hari ini",
@@ -374,6 +375,7 @@ describe("discovery bag merchant demo", () => {
     const latitude = -6.3718;
     const longitude = 106.8318;
     await backend.upsertStore(storeInput({ latitude, longitude }));
+    await backend.setMerchantVerification("store-me", "verified");
     const now = new Date();
     await backend.addBag(
       bagInput({
@@ -406,6 +408,7 @@ describe("discovery bag merchant demo", () => {
   it("the local store bag carries the demo merchant identity", async () => {
     const backend = new FakeBackend();
     await backend.upsertStore({ ...storeInput({ name: "  toko pagi " }), description: "Desc" });
+    await backend.setMerchantVerification("store-me", "verified");
     await backend.addBag(bagInput({ originalPrice: 15000 }));
     const [bag] = await backend.bagsByMerchant("store-me");
     expect(bag.merchant).toMatchObject({
@@ -425,6 +428,7 @@ describe("discovery bag merchant demo", () => {
   it("future dates and finished pickup windows are hidden from browse", async () => {
     const backend = new FakeBackend();
     await backend.upsertStore(storeInput());
+    await backend.setMerchantVerification("store-me", "verified");
     const now = new Date();
     await backend.addBag(bagInput({ title: "Besok", availableOn: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) }));
     await backend.addBag(bagInput({ title: "Sudah lewat", pickupEndsAt: new Date(now.getTime() - 1000) }));
@@ -492,6 +496,7 @@ describe("deep links (web only)", () => {
     expect(await backend.merchantById("m2")).toBe(SampleData.kopiSenja);
     expect(await backend.merchantById("store-me")).toBeNull();
     await backend.upsertStore(storeInput());
+    await backend.setMerchantVerification("store-me", "verified");
     expect(await backend.merchantById("store-me")).toMatchObject({ id: "store-me", name: "Toko Demo SaveBite" });
     expect(await backend.merchantById("missing")).toBeNull();
   });
@@ -820,6 +825,8 @@ describe("profile, store, and account", () => {
       phone: "0811",
       avatarUrl: "blob:avatar",
       lastMode: "consumer",
+      suspendedAt: null,
+      suspendedReason: null,
     });
     await backend.setLastMode("merchant");
     expect((await backend.currentProfile())?.lastMode).toBe("merchant");
@@ -841,6 +848,8 @@ describe("profile, store, and account", () => {
       logoUrl: "blob:logo",
       latitude: -6.37,
       longitude: 106.83,
+      verificationStatus: "pending",
+      verificationNote: null,
     });
   });
 

@@ -15,6 +15,7 @@ import { navigator } from "../lib/navigator";
 import { PrimaryButton } from "../ui/buttons";
 import { CenteredSpinner, EmptyState, Screen, SimpleHeader } from "../ui/common";
 import { CheckoutScreen } from "./consumer/CheckoutScreen";
+import { ComplaintScreen } from "./consumer/ComplaintScreen";
 import { DetailScreen } from "./consumer/DetailScreen";
 import { PaymentFailedScreen } from "./consumer/PaymentFailedScreen";
 import { ProcessingScreen } from "./consumer/ProcessingScreen";
@@ -205,6 +206,14 @@ export function RatingRoute({ orderId }: { orderId: string }) {
   return (
     <RouteLoader title="Beri ulasan" load={() => loadOrder(orderId)} {...ORDER_MISSING}>
       {(order) => <RatingScreen order={order} />}
+    </RouteLoader>
+  );
+}
+
+export function ComplaintRoute({ orderId }: { orderId: string }) {
+  return (
+    <RouteLoader title="Ajukan pengaduan" load={() => loadOrder(orderId)} {...ORDER_MISSING}>
+      {(order) => <ComplaintScreen order={order} />}
     </RouteLoader>
   );
 }
