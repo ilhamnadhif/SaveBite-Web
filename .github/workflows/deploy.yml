@@ -3,6 +3,10 @@ name: SaveBite Web CI/CD
 on:
   push:
     branches: [main]
+    # Course documents change nothing the app runs; a docs-only push should
+    # not rebuild and redeploy production.
+    paths-ignore:
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
@@ -141,6 +145,7 @@ jobs:
           ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "mkdir -p /home/$VPS_USER/savebite-web"
           rsync -az --delete \
             --exclude='/.git' \
+            --exclude='/docs/' \
             --exclude='node_modules/' \
             --exclude='/.env' \
             --exclude='.env.local' \
