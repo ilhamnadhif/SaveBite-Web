@@ -1,0 +1,55 @@
+
+ RUN  v4.1.11 /Users/ilham/Developments/SaveBite-Web/apps/web
+      Coverage enabled with v8
+
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.1 nilai bukan angka (NaN) -> dianggap 0 1ms
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.2 satu digit, perulangan berjalan 1 kali tanpa titik 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.3 tiga digit, perulangan 3 kali tanpa titik 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.4 empat digit, titik pemisah ribuan muncul 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.5 tujuh digit, titik muncul dua kali 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.6 nilai negatif mendapat tanda minus 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-1 formatRupiah(value) > WB-1.7 nilai pecahan dibulatkan ke bawah 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.1 daftar kosong, perulangan tidak berjalan -> valid 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.2 satu item -> valid 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.3 item kosong dan spasi dilewati -> valid 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.4 item duplikat (beda huruf besar/kecil) dihitung sekali 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.5 tepat 20 item (batas atas) -> valid 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.6 21 item (lewat batas) -> 'Maksimal 20 item' 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.7 satu item tepat 80 karakter (batas atas) -> valid 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-2 bagContentsValidationError(values) > WB-2.8 satu item 81 karakter -> 'Setiap item maksimal 80 karakter' 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-3 canComplain(order, complaint) > WB-3.1 id pesanan kosong -> tidak boleh mengadu 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-3 canComplain(order, complaint) > WB-3.2 pesanan sudah punya pengaduan -> tidak boleh mengadu lagi 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-3 canComplain(order, complaint) > WB-3.3 pembayaran lunas (paid) -> boleh mengadu 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-3 canComplain(order, complaint) > WB-3.4 pembayaran dikembalikan (refunded) -> boleh mengadu 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-3 canComplain(order, complaint) > WB-3.5 pembayaran disengketakan (disputed) -> boleh mengadu 0ms
+ ✓ test/whitebox-tugas12.test.ts > WB-3 canComplain(order, complaint) > WB-3.6 pembayaran belum lunas (pending) -> tidak boleh mengadu 0ms
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  14:06:59
+   Duration  177ms (transform 55ms, setup 17ms, import 48ms, tests 4ms, environment 0ms)
+
+ % Coverage report from v8
+-----------|---------|----------|---------|---------|---------------------------
+File       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s         
+-----------|---------|----------|---------|---------|---------------------------
+All files  |    40.9 |    20.72 |      24 |    44.7 |                           
+ models.ts |    40.9 |    20.72 |      24 |    44.7 | ...36,360-419,436,506-507 
+-----------|---------|----------|---------|---------|---------------------------
+
+=============================== Coverage summary ===============================
+Statements   : 40.9% ( 45/110 )
+Branches     : 20.72% ( 23/111 )
+Functions    : 24% ( 6/25 )
+Lines        : 44.7% ( 38/85 )
+================================================================================
+
+Branch coverage per fungsi (dihitung dari coverage-final.json, provider v8, lib/models.ts):
+formatRupiah               : 8/8 cabang (100%), 10/10 statement
+normalizeBagContents       : 4/4 cabang (100%), 9/9 statement
+bagContentsValidationError : 4/4 cabang (100%), 7/7 statement
+canComplain                : 7/7 cabang (100%), 3/3 statement
+
+Seluruh test repo (pnpm test, 14 November 2026):
+packages/web-shared : 3 file, 53 test lulus
+apps/web            : 21 file, 403 test lulus, 1 dilewati (skipped)

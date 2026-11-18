@@ -4,6 +4,12 @@ SaveBite untuk browser: aplikasi Flutter SaveBite (`../SaveBite`) yang di-port s
 
 Satu aplikasi melayani tiga peran: **konsumen** menemukan dan memesan Surprise Bag di sekitar mereka, **merchant** mengelola toko, bag, pesanan, pickup, dan saldo, dan **admin** memverifikasi penjual, mengelola pengguna, menangani pengaduan, dan melihat laporan transaksi. Backend-nya Supabase yang sama dengan aplikasi mobile (Auth, Postgres + RLS, Realtime, Storage, Edge Functions Midtrans).
 
+## Dokumen Tugas RPL – Kelompok 2
+
+Aplikasi: <https://savebite.web.id>. Seluruh dokumen tugas Rekayasa Perangkat Lunak ada di [`docs/`](docs/README.md): SRS, use case, class, activity, sequence, dan deployment diagram, hasil Figma, file pengujian, hasil sistem, dan PPT presentasi.
+
+Anggota: Muhammad Nuzuly (202343500407), Tri Adji Saputra (202343500365), Muhammad Ilham Nadhif (202343500521).
+
 ## Alur (sama dengan mobile)
 
 - **Startup**: tanpa splash — jika ada sesi, muat profil/toko lalu buka ruang kerja terakhir (`last_mode`); jika tidak, onboarding (sekali per perangkat) → pilih peran → login Google.
